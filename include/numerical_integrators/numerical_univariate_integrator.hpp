@@ -3,7 +3,7 @@
 #include <limits>
 #include <cmath>
 
-namespace math::integration
+namespace algebraic_integrators
 {
     // N models a numerical integration method
 	template <typename N>
@@ -13,15 +13,11 @@ namespace math::integration
         using result_type = typename N::result_type;
         using integrator_type = N;
 
-		explicit numerical_univariate_integrator(
-            N nint,
-            value_type h) :
-                nint(std::move(nint)),
-				h(h) {}
+		explicit numerical_univariate_integrator(N nint, value_type h) :
+            nint(nint), h(h) {}
 
 		numerical_univariate_integrator() :
-			nint(),
-			h(nint.default_step_size()) {}
+			nint(), h(nint.default_step_size()) {}
 
 		numerical_univariate_integrator(
 			numerical_univariate_integrator const & ) = default;
@@ -31,33 +27,33 @@ namespace math::integration
 		auto integrator() const { return nint; }
 
 		template <typename F>
-		auto left_bounded(F&& f, value_type t0) const
+		auto left_bounded(F f, value_type t0) const
 		{
-			return left_bounded(std::forward<F>(f), t0, _h);
+			return left_bounded(f, t0, h);
 		}
 
 		template <typename F>
 		auto left_bounded(F&& f, value_type t0, value_type h) const
 		{
-			return nint([f = std::forward<F>(f), t0](value_type t) -> value_type
+			return nint([f,t0](value_type t) -> value_type
                 {
 				    const value_type c = value_type(1) / (value_type(1) - t);
 				    return f(t0 + c * t) * c * c;
 			    }, value_type(0),
                 value_type(1) - std::numeric_limits<value_type>::epsilon(),
-			    std::move(h));
+			    h);
 		}
 
 		template <typename F>
-		auto right_bounded(F&& f, value_type t1) const
+		auto right_bounded(F f, value_type t1) const
 		{
-			return right_bounded(std::forward<F>(f), t1, h);
+			return right_bounded(f, t1, h);
 		}
 
 		template <typename F>
-		auto right_bounded(F&& f, value_type t1, value_type h) const
+		auto right_bounded(F f, value_type t1, value_type h) const
 		{
-			return nint([f = std::forward<F>(f), t1](value_type t) -> value_type
+			return nint([f,t1](value_type t) -> value_type
                 {
                     const value_type c = value_type(1) / t;
                     return f(t1 + value_type(1) - c) * c * c;
@@ -68,44 +64,44 @@ namespace math::integration
 		}
 
 		template <typename F>
-		auto unbounded(F&& f) const
-		{
-			return unbounded(std::forward<F>(f), _h);
-		}
+		auto unbounded(F f) const { return unbounded(f, h); }
 
 		template <typename F>
-		auto unbounded(F&& f, value_type h) const
+		auto unbounded(F f, value_type h) const
 		{
+            using std::sin;
+            using std::cos;
+
 			const static auto HALF_PI = value_type(1.5707963267949);
-			return nint([f = std::forward<F>(f)](value_type t) -> value_type
+			return nint([f](value_type t) -> value_type
                 {
-                    const value_type c = value_type(1) / std::cos(t);
-                    return f(std::sin(t) * c) * c * c;
-                }, -HALF_PI, HALF_PI, std::move(h));
+                    const value_type c = value_type(1) / cos(t);
+                    return f(sin(t) * c) * c * c;
+                }, -HALF_PI, HALF_PI, h);
 		}
 
 		template <typename F>
-		auto bounded(F&& f, value_type t0, value_type t1) const
+		auto bounded(F f, value_type t0, value_type t1) const
 		{
-			return bounded(std::forward<F>(f), t0, t1, h);
+			return bounded(f, t0, t1, h);
 		}
 
 		template <typename F>
-		auto bounded(F&& f, value_type t0, value_type t1, value_type h) const
+		auto bounded(F f, value_type t0, value_type t1, value_type h) const
 		{
-			return operator()(std::forward<F>(f), t0, t1, h);
+			return operator()(f, t0, t1, h);
 		}
 
 		template <typename F>
-		auto operator()(F&& f, value_type t0, value_type t1, value_type h) const
+		auto operator()(F f, value_type t0, value_type t1, value_type h) const
 		{
-			return nint(std::forward<F>(f), t0, t1, h);			
+			return nint(f, t0, t1, h);			
 		}
 
 		template <typename F>
-		auto operator()(F&& f, value_type t0, value_type t1) const
+		auto operator()(F f, value_type t0, value_type t1) const
 		{
-			return nint(std::forward<F>(f), t0, t1, _h);			
+			return nint(f, t0, t1, h);			
 		}
 		
 		N nint;

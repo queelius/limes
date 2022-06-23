@@ -2,7 +2,7 @@
 
 #include <limits>
 
-namespace math::integration
+namespace algebraic_integrators
 {
     /**
      * Models the concept of a numerical univariate integration method. It
@@ -54,18 +54,20 @@ namespace math::integration
         {
 			T operator()() const { return sum; }
             operator T() const { return sum; }
+            auto error() const { return error_estimate; }
+            auto evals() const { return iterations; }
 
             T sum;
             T error_estimate;
             int iterations;
         };
 
-		auto default_step_size() const { return T(1e-3); }
+		auto default_step_size() const { return T(1e-4); }
 
         template <typename F>
 		auto operator()(F f, T t0, T t1) const
 		{
-			return operator()(std::forward<F>(f), t0, t1, default_step_size());
+			return operator()(f,t0,t1,default_step_size());
 		}
 
         template <typename F>

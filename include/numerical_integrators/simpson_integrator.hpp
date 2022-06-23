@@ -1,11 +1,11 @@
 
 namespace math::integration
 {
-    template <typename Accumulator>
+    template <typename A>
     struct simpson_univariate_integrator
     {
-		using value_type = typename Accumulator::value_type;
-		using accumulator_type = Accumulator;
+		using value_type = typename A::value_type;
+		using accumulator_type = A;
 
         struct result_type
         {
@@ -22,14 +22,14 @@ namespace math::integration
 		template <typename F>
         result_type operator()(F&& f, value_type t0, value_type t1) const
 		{
-			return operator()(std::forward<F>(f), t0, t1, default_step_size());
+			return operator()(f, t0, t1, default_step_size());
 		}
 
 		template <typename F>
-        result_type operator()(F&& f, value_type t0, value_type t1, value_type h) const
+        result_type operator()(F f, value_type t0, value_type t1, value_type h) const
         {
             int i = 0;
-            Accumulator yn, tn(std::move(t0));
+            A yn, tn(0);
 			value_type fn = f(tn);
             while (true)
             {

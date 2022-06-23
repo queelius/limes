@@ -1,4 +1,8 @@
-# Algebraic integrators
+# Algebraic integrators and differentiators
+
+## Algebraic operations
+
+## Solvers
 
 ## Numerical differentiators
 

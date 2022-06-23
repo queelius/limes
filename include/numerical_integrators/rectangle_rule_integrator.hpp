@@ -1,9 +1,9 @@
 namespace math::integration
 {
-	template <typename Accumulator>
+	template <typename A>
     struct rectangle_rule_integrator
     {
-		using value_type = typename Accumulator::value_type;
+		using value_type = typename A::value_type;
 
         struct result_type
         {
@@ -21,7 +21,7 @@ namespace math::integration
         auto operator()(F f, value_type t0,
             value_type t1, value_type h = default_step_size()) const
         {
-			Accumulator y = T(0);
+			A y = T(0);
             int j = 0;
             while (t0 < t1 - h)
             {
