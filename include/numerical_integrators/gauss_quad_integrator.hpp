@@ -12,8 +12,8 @@ namespace alex::math
 
         auto & operator+=(T const & rhs) { a += rhs; return *this; }
         auto & operator=(T const & rhs) { a = rhs.a; return *this; }
-        auto operator+(T const & rhs) const { return default_accumulator{a+rhs.a}}
-        auto operator*(T const & rhs) const { return default_accumulator{a*rhs.a}}
+        auto operator+(T const & rhs) const { return default_accumulator{a+rhs.a}; }
+        auto operator*(T const & rhs) const { return default_accumulator{a*rhs.a}; }
         auto operator>=(T const & rhs) const { return a < rhs.a; }
 
         auto operator()() const { return a; }
