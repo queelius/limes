@@ -92,6 +92,36 @@ target_link_libraries(test_concepts
 )
 gtest_discover_tests(test_concepts)
 
+add_executable(test_ode_solvers test_ode_solvers.cpp)
+target_link_libraries(test_ode_solvers
+    PRIVATE
+    algebraic_integrators
+    GTest::gtest
+    GTest::gtest_main
+    pthread
+)
+gtest_discover_tests(test_ode_solvers)
+
+add_executable(test_differentiation test_differentiation.cpp)
+target_link_libraries(test_differentiation
+    PRIVATE
+    algebraic_integrators
+    GTest::gtest
+    GTest::gtest_main
+    pthread
+)
+gtest_discover_tests(test_differentiation)
+
+add_executable(test_antiderivative test_antiderivative.cpp)
+target_link_libraries(test_antiderivative
+    PRIVATE
+    algebraic_integrators
+    GTest::gtest
+    GTest::gtest_main
+    pthread
+)
+gtest_discover_tests(test_antiderivative)
+
 # Add custom target for running tests with coverage
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_custom_target(coverage

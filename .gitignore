@@ -5,9 +5,27 @@
 !/.gitignore
 
 random_elements.synctex.gz
-/build* 
+/build*
 *.log
 *.out
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.gcda
+*.gcno
+*.gcov
+
+# Executables
+simple_demo
+test_basic
+*_test
+demo
+
+# MkDocs build directory
+site/
 *.fls
 *.idx
 *.pyg

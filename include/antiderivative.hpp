@@ -1,3 +1,4 @@
+#pragma once
 
 /**
  * An antidervative of f is integrate(f,a,x) + k for any a and k.
@@ -11,14 +12,14 @@
 template <typename F, typename N>
 struct antideriv_of
 {
+    using value_type = typename N::value_type;
+
     F f;
     N nint;
     value_type a;
     value_type k;
 
-    using value_type = N::value_type;
-
-    antideriv_of(F f, N nint, double a = 0, double k = 0) :
+    antideriv_of(F f, N nint, value_type a = value_type(0), value_type k = value_type(0)) :
         f(f), nint(nint), a(a), k(k) {}
 
     auto operator()(value_type x) const
@@ -33,10 +34,13 @@ auto deriv(antideriv_of<F,N> const & f)
     return f.f;
 }
 
-template <typename F, typename N = gauss_quad_integrator<kbn_sum<double>>>
-auto antideriv(F const & f, N nint = N(), typename N::value_type a = 0.)
+// Note: Default template parameter removed - user must specify integrator type
+// This avoids dependency on specific integrator implementations
+template <typename F, typename N>
+auto antideriv(F const & f, N nint, typename N::value_type a = typename N::value_type(0))
 {
-    return antideriv_of{f,nint,a}
+    using value_type = typename N::value_type;
+    return antideriv_of<F, N>{f, nint, a, value_type(0)};
 }
 
 
@@ -57,15 +61,20 @@ auto antideriv(F const & f, N nint = N(), typename N::value_type a = 0.)
  * for the constant.
  */
 template <typename F, typename N>
-auto solve(antideriv_of<F,N> F, double x0, double y0)
+auto solve(antideriv_of<F,N> antideriv_func,
+           typename antideriv_of<F,N>::value_type x0,
+           typename antideriv_of<F,N>::value_type y0)
 {
-    F.a = x0;
-    F.k = y0;
-    return F;
+    antideriv_func.a = x0;
+    antideriv_func.k = y0;
+    return antideriv_func;
 }
 
 template <typename F, typename N>
-auto solve_antideriv(F f, double x0, double y0, N nint = N())
+auto solve_antideriv(F f,
+                     typename N::value_type x0,
+                     typename N::value_type y0,
+                     N nint)
 {
-    return antideriv_of<F,N>{ f, nint, x0, y0 }
+    return antideriv_of<F,N>{ f, nint, x0, y0 };
 }

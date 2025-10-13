@@ -24,8 +24,10 @@ namespace algebraic_integrators
         int i = 0;
         for (auto v : x)
         {
-            g[i] = D{}([f,x,i](auto t)
-            { x[i] = t; return f(x) }, v, h);
+            g[i] = D{}([f, x, i](auto t) mutable {
+                x[i] = t;
+                return f(x);
+            }, v, h);
             ++i;
         }
         return g;

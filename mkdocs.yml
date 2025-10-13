@@ -1,0 +1,41 @@
+site_name: Algebraic Integrators
+site_description: Modern C++20 library for numerical integration, differentiation, and ODE solving
+site_author: Spinoza
+repo_url: https://github.com/spinoza/algebraic_integrators
+repo_name: spinoza/algebraic_integrators
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - pymdownx.arithmatex:
+      generic: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Architecture: architecture.md
+  - API Reference:
+    - Integration: api/integration.md
+    - Differentiation: api/differentiation.md
+    - ODE Solvers: api/ode-solvers.md
+    - Accumulators: api/accumulators.md
+  - Examples: examples.md
+  - Testing: testing.md
