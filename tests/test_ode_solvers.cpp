@@ -9,7 +9,7 @@
 #include "../include/accumulators/accumulators.hpp"
 
 using namespace alex::math;
-using namespace algebraic_integrators::accumulators;
+using namespace calckit::accumulators;
 
 // Test fixture for ODE solvers
 template <typename T>

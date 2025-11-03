@@ -3,7 +3,7 @@
 #include <limits>
 #include <cmath>
 
-namespace algebraic_integrators
+namespace calckit
 {
     // N models a numerical integration method
 	template <typename N>

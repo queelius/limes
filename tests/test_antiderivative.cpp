@@ -5,7 +5,7 @@
 #include "../include/numerical_integrators/simpson_integrator.hpp"
 #include "../include/accumulators/accumulators.hpp"
 
-using namespace algebraic_integrators::accumulators;
+using namespace calckit::accumulators;
 using namespace math::integration;
 
 // Test fixture for antiderivative tests

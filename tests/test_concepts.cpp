@@ -6,7 +6,7 @@
 #include "../include/accumulators/accumulators.hpp"
 #include "../include/core/integration_result.hpp"
 
-using namespace algebraic_integrators::concepts;
+using namespace calckit::concepts;
 
 // Basic concept tests
 TEST(ConceptsTest, BasicConcepts) {
@@ -121,11 +121,11 @@ TEST(ConceptsIntegration, PracticalUsage) {
 // Verify concepts work with the library types
 TEST(ConceptsLibrary, LibraryTypes) {
     // Test that library accumulators satisfy the concept
-    using SimpleAcc = algebraic_integrators::accumulators::simple_accumulator<double>;
+    using SimpleAcc = calckit::accumulators::simple_accumulator<double>;
     EXPECT_TRUE((Accumulator<SimpleAcc, double>));
 
     // Test that integration result works with Field concept
     EXPECT_TRUE(Field<double>);
-    algebraic_integrators::integration_result<double> result(1.0, 1e-6, 100);
+    calckit::integration_result<double> result(1.0, 1e-6, 100);
     EXPECT_EQ(result.value(), 1.0);
 }

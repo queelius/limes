@@ -5,7 +5,7 @@
 ### Simple Integral
 
 ```cpp
-#include "algebraic_integrators.hpp"
+#include "calckit.hpp"
 
 int main() {
     // Integrate x² from 0 to 1

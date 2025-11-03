@@ -4,9 +4,9 @@
 #include <numbers>
 #include <random>
 #include "../include/transforms/coordinate_transforms.hpp"
-#include "../include/algebraic_integrators.hpp"
+#include "../include/calckit.hpp"
 
-using namespace algebraic_integrators::transforms;
+using namespace calckit::transforms;
 
 // Test fixture for transform tests
 template <typename T>
@@ -149,7 +149,7 @@ TEST(TransformIntegration, IntervalTransform) {
     };
 
     // Integrate over [-1, 1] using the high-level API
-    auto result = algebraic_integrators::integrate_adaptive(transformed_f, -1.0, 1.0, 1e-10);
+    auto result = calckit::integrate_adaptive(transformed_f, -1.0, 1.0, 1e-10);
 
     // Exact integral: x^3/3 from 2 to 5 = 125/3 - 8/3 = 117/3 = 39
     double exact = 39.0;

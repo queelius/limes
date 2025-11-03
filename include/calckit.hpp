@@ -22,10 +22,8 @@
 // Coordinate transforms
 #include "transforms/coordinate_transforms.hpp"
 
-// Main namespace alias
-namespace ai = algebraic_integrators;
-
-namespace algebraic_integrators {
+// Main namespace
+namespace calckit {
 
 // High-level integration interface with sensible defaults
 template<concepts::Field T = double>
@@ -199,7 +197,7 @@ public:
             auto integrator = parallel::make_parallel_integrator<T>(policy);
             return integrator(std::forward<F>(f), a, b, tolerance_);
         } else {
-            return algebraic_integrators::integrate<T>::adaptive(std::forward<F>(f), a, b, tolerance_);
+            return calckit::integrate<T>::adaptive(std::forward<F>(f), a, b, tolerance_);
         }
     }
 
@@ -217,4 +215,10 @@ auto make_integrator() {
     return integrator_builder<T>{};
 }
 
-} // namespace algebraic_integrators
+} // namespace calckit
+
+// Backward compatibility (will be removed in v3.0)
+namespace algebraic_integrators = calckit;
+
+// Short alias
+namespace ai = calckit;

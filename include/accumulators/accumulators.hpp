@@ -6,7 +6,7 @@
 #include <memory>
 #include "../concepts/integrator_concepts.hpp"
 
-namespace algebraic_integrators::accumulators {
+namespace calckit::accumulators {
 
 using concepts::Field;
 using concepts::Accumulator;
@@ -275,4 +275,4 @@ constexpr auto make_klein() { return klein_accumulator<T>{}; }
 template<Field T, std::size_t ChunkSize = 128>
 constexpr auto make_pairwise() { return pairwise_accumulator<T, ChunkSize>{}; }
 
-} // namespace algebraic_integrators::accumulators
+} // namespace calckit::accumulators

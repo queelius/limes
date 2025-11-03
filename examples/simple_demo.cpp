@@ -2,9 +2,9 @@
 #include <iomanip>
 #include <cmath>
 #include <numbers>
-#include "../include/algebraic_integrators.hpp"
+#include "../include/calckit.hpp"
 
-using namespace algebraic_integrators;
+using namespace calckit;
 
 int main() {
     using T = double;

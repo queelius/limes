@@ -3,9 +3,9 @@
 #include <cmath>
 #include <chrono>
 #include <numbers>
-#include "../include/algebraic_integrators.hpp"
+#include "../include/calckit.hpp"
 
-using namespace algebraic_integrators;
+using namespace calckit;
 using namespace std::chrono;
 
 template<typename T>

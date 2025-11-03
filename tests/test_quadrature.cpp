@@ -6,7 +6,7 @@
 #include <limits>
 #include "../include/quadrature/quadrature_rules.hpp"
 
-using namespace algebraic_integrators::quadrature;
+using namespace calckit::quadrature;
 
 // Helper function for testing polynomial integration
 template <typename T>

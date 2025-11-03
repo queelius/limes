@@ -7,7 +7,7 @@
 #include <array>
 #include "../include/accumulators/accumulators.hpp"
 
-using namespace algebraic_integrators::accumulators;
+using namespace calckit::accumulators;
 
 // Test fixture for accumulator tests
 template <typename T>

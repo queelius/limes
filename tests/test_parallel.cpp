@@ -7,10 +7,10 @@
 #include <vector>
 #include <numbers>
 #include "../include/parallel/parallel_integration.hpp"
-#include "../include/algebraic_integrators.hpp"
+#include "../include/calckit.hpp"
 
-using namespace algebraic_integrators;
-using namespace algebraic_integrators::parallel;
+using namespace calckit;
+using namespace calckit::parallel;
 
 // Test fixture for parallel integration
 class ParallelIntegrationTest : public ::testing::Test {

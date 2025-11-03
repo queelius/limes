@@ -11,7 +11,7 @@
 #include "../accumulators/accumulators.hpp"
 #include "../quadrature/quadrature_rules.hpp"
 
-namespace algebraic_integrators {
+namespace calckit {
 
 // Basic quadrature integrator using any quadrature rule and accumulator
 template<
@@ -318,4 +318,4 @@ constexpr auto make_romberg() {
     return romberg_integrator<T>{};
 }
 
-} // namespace algebraic_integrators
+} // namespace calckit

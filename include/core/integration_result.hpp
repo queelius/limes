@@ -6,7 +6,7 @@
 #include <vector>
 #include "../concepts/integrator_concepts.hpp"
 
-namespace algebraic_integrators {
+namespace calckit {
 
 // Integration result with comprehensive metadata
 template<concepts::Field T>
@@ -89,4 +89,4 @@ integration_result(T, T, std::size_t) -> integration_result<T>;
 template<typename T>
 integration_result(T, T, std::size_t, std::size_t) -> integration_result<T>;
 
-} // namespace algebraic_integrators
+} // namespace calckit

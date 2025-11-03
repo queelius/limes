@@ -2,7 +2,7 @@
 
 #include <limits>
 
-namespace algebraic_integrators
+namespace calckit
 {
     /**
      * Models the concept of a numerical univariate integration method. It

@@ -1,8 +1,8 @@
-site_name: Algebraic Integrators
+site_name: CalcKit
 site_description: Modern C++20 library for numerical integration, differentiation, and ODE solving
 site_author: Spinoza
-repo_url: https://github.com/spinoza/algebraic_integrators
-repo_name: spinoza/algebraic_integrators
+repo_url: https://github.com/spinoza/calckit
+repo_name: spinoza/calckit
 
 theme:
   name: material

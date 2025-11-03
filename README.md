@@ -1,4 +1,4 @@
-# Algebraic integrators and differentiators
+# CalcKit - Composable Calculus Toolkit
 
 ## Algebraic operations
 

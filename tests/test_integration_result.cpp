@@ -4,7 +4,7 @@
 #include <sstream>
 #include "../include/core/integration_result.hpp"
 
-using namespace algebraic_integrators;
+using namespace calckit;
 
 // Test fixture for integration_result tests
 template <typename T>

@@ -64,13 +64,13 @@ Key composition layers:
 5. **Parallel Execution**: Work-stealing parallelization layer
 
 ### Namespace Organization
-- `algebraic_integrators` (alias: `ai`): Main namespace for integration
+- `calckit` (alias: `ai`): Main namespace for integration
 - `alex::math`: ODE solvers (legacy namespace from earlier design)
 
 ### Key Header Files
 
 **Main Entry Point:**
-- `include/algebraic_integrators.hpp`: High-level interface with `integrate<T>::adaptive()`, builder pattern, convenience functions
+- `include/calckit.hpp`: High-level interface with `integrate<T>::adaptive()`, builder pattern, convenience functions
 
 **Core Infrastructure:**
 - `include/concepts/integrator_concepts.hpp`: C++20 concepts for all template parameters
@@ -85,6 +85,13 @@ Key composition layers:
 
 **Legacy Integrators (older design):**
 - `include/numerical_integrators/*.hpp`: Original single-file integrators
+
+**Differentiation:**
+- `include/numerical_differentiation.hpp`: Central finite difference, gradients
+- `include/central_finite_difference.hpp`: Core differentiation algorithms
+
+**Antiderivatives:**
+- `include/antiderivative.hpp`: Symbolic antiderivative computation
 
 **ODE Solvers:**
 - `include/ode/euler_ode1.hpp`, `include/ode/rk4_ode1.hpp`: First-order ODEs
@@ -118,9 +125,20 @@ auto result = integrator.integrate(f, a, b);
 ## Testing
 
 ### Test Structure
-- Google Test framework for unit tests
-- Each component has dedicated test file (test_accumulators.cpp, test_quadrature.cpp, etc.)
+- Google Test framework for unit tests (118+ tests total)
+- Each component has dedicated test file:
+  - `test_accumulators.cpp` (42 tests): Type-parameterized float/double tests
+  - `test_quadrature.cpp`: Quadrature rule validation
+  - `test_integrators.cpp`: Integration algorithm tests
+  - `test_ode_solvers.cpp` (26 tests): ODE solver accuracy and convergence
+  - `test_differentiation.cpp` (34 tests): Derivative and gradient tests
+  - `test_antiderivative.cpp` (16 tests): Antiderivative computation tests
+  - `test_transforms.cpp`: Coordinate transformation tests
+  - `test_parallel.cpp`: Parallel execution tests
+  - `test_concepts.cpp`: C++20 concept validation
+  - `test_integration_result.cpp`: Result type tests
 - `basic_tests.cpp`: Simple validation without GTest dependency
+- Type-parameterized tests use type-aware tolerances (1e-5 for float, 1e-10 for double)
 
 ### Running Tests
 ```bash
@@ -130,6 +148,20 @@ cd build && ctest --output-on-failure
 # Specific test suite
 ./build/tests/test_integrators
 ./build/tests/test_accumulators
+./build/tests/test_ode_solvers
+./build/tests/test_differentiation
+./build/tests/test_antiderivative
+./build/tests/test_quadrature
+./build/tests/test_transforms
+./build/tests/test_parallel
+./build/tests/test_concepts
+./build/tests/test_integration_result
+
+# Run with verbose output
+ctest -V
+
+# Run tests matching pattern
+ctest -R "accumulator|integrator"
 
 # With coverage (Debug build)
 cmake --build build --target coverage
@@ -164,3 +196,19 @@ Compose existing rules + accumulators in `include/integrators/`, or create new a
 
 ### ODE Solver Pattern
 ODE solvers use interval-based stepping with `alex::math` namespace. See existing Euler/RK4 implementations for patterns.
+
+### Type-Aware Testing
+When writing tests for floating-point code, use type-aware tolerances:
+```cpp
+TYPED_TEST(MyTest, SomeTest) {
+    using T = TypeParam;
+    T tolerance = std::is_same_v<T, float> ? T(1e-5) : T(1e-10);
+    EXPECT_NEAR(result, expected, tolerance);
+}
+```
+
+### Differentiation and Antiderivatives
+- Use `central_finite_difference()` for derivatives (8th-order accurate)
+- Use `grad()` for gradients of multivariable functions
+- Use `antideriv()` to create antiderivative functors
+- Step size `h` typically 1e-3 to 1e-5 for double precision

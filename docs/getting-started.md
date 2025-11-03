@@ -5,20 +5,20 @@
 This is a header-only library. Simply include the main header:
 
 ```cpp
-#include "algebraic_integrators.hpp"
+#include "calckit.hpp"
 ```
 
 Or with CMake:
 
 ```cmake
-find_package(algebraic_integrators REQUIRED)
-target_link_libraries(your_target ai::algebraic_integrators)
+find_package(calckit REQUIRED)
+target_link_libraries(your_target ai::calckit)
 ```
 
 ## First Integration
 
 ```cpp
-#include "algebraic_integrators.hpp"
+#include "calckit.hpp"
 
 int main() {
     // Define a function to integrate

@@ -6,7 +6,7 @@
 #include "../include/central_finite_difference.hpp"
 #include "../include/numerical_differentiation.hpp"
 
-using namespace algebraic_integrators;
+using namespace calckit;
 
 // Test fixture for differentiation tests
 template <typename T>

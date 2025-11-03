@@ -4,7 +4,7 @@
 #include <type_traits>
 #include <functional>
 
-namespace algebraic_integrators::concepts {
+namespace calckit::concepts {
 
 // Fundamental numeric type concepts
 template<typename T>
@@ -136,4 +136,4 @@ concept ExecutionPolicy = requires(P policy) {
     requires std::is_copy_constructible_v<P>;
 };
 
-} // namespace algebraic_integrators::concepts
+} // namespace calckit::concepts

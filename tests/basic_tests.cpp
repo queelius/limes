@@ -2,9 +2,9 @@
 #include <cmath>
 #include <cassert>
 #include <numbers>
-#include "../include/algebraic_integrators.hpp"
+#include "../include/calckit.hpp"
 
-using namespace algebraic_integrators;
+using namespace calckit;
 
 template<typename T>
 bool approx_equal(T a, T b, T tol = T(1e-10)) {

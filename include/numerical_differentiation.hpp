@@ -3,7 +3,7 @@
 #include <vector>
 #include <limits>
 
-namespace algebraic_integrators
+namespace calckit
 {
     struct five_point_stencil_method
     {

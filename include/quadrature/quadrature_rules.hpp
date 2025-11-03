@@ -7,7 +7,7 @@
 #include <ranges>
 #include "../concepts/integrator_concepts.hpp"
 
-namespace algebraic_integrators::quadrature {
+namespace calckit::quadrature {
 
 // Base quadrature rule interface
 template<concepts::Field T, std::size_t N>
@@ -228,4 +228,4 @@ constexpr auto make_trapezoidal() { return trapezoidal_rule<T>{}; }
 template<concepts::Field T>
 constexpr auto make_midpoint() { return midpoint_rule<T>{}; }
 
-} // namespace algebraic_integrators::quadrature
+} // namespace calckit::quadrature

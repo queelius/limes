@@ -5,9 +5,9 @@
 #include <numbers>
 #include <complex>
 #include "../include/integrators/univariate_integrator.hpp"
-#include "../include/algebraic_integrators.hpp"
+#include "../include/calckit.hpp"
 
-using namespace algebraic_integrators;
+using namespace calckit;
 
 // Test functions with known integrals
 namespace test_functions {

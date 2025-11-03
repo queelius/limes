@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include "../concepts/integrator_concepts.hpp"
 
-namespace algebraic_integrators::transforms {
+namespace calckit::transforms {
 
 // Base transform interface
 template<concepts::Field T>
@@ -327,4 +327,4 @@ auto compose(T1&& t1, T2&& t2) {
     return composite_transform<T>{std::forward<T1>(t1), std::forward<T2>(t2)};
 }
 
-} // namespace algebraic_integrators::transforms
+} // namespace calckit::transforms

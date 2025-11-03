@@ -18,7 +18,7 @@
 #include "../core/integration_result.hpp"
 #include "../integrators/univariate_integrator.hpp"
 
-namespace algebraic_integrators::parallel {
+namespace calckit::parallel {
 
 // Execution policy for parallel integration
 struct execution_policy {
@@ -365,4 +365,4 @@ auto make_parallel_monte_carlo(std::size_t samples = 1000000, execution_policy p
     return parallel_monte_carlo<T>{samples, policy};
 }
 
-} // namespace algebraic_integrators::parallel
+} // namespace calckit::parallel
