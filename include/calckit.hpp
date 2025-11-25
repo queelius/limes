@@ -217,8 +217,5 @@ auto make_integrator() {
 
 } // namespace calckit
 
-// Backward compatibility (will be removed in v3.0)
-namespace algebraic_integrators = calckit;
-
 // Short alias
-namespace ai = calckit;
+namespace ck = calckit;

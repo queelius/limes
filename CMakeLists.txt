@@ -16,11 +16,6 @@ option(ENABLE_OPENMP "Enable OpenMP parallelization" ON)
 add_library(calckit INTERFACE)
 add_library(ck::calckit ALIAS calckit)
 
-# Backward compatibility alias
-add_library(algebraic_integrators INTERFACE)
-target_link_libraries(algebraic_integrators INTERFACE calckit)
-add_library(ai::algebraic_integrators ALIAS algebraic_integrators)
-
 target_include_directories(calckit
     INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -76,7 +71,7 @@ endif()
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-install(TARGETS calckit algebraic_integrators
+install(TARGETS calckit
     EXPORT calckitTargets
 )
 
