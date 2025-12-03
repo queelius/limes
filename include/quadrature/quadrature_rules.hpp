@@ -122,19 +122,45 @@ struct clenshaw_curtis : quadrature_rule<T, N> {
 private:
     constexpr void compute_nodes() noexcept {
         constexpr T pi = std::numbers::pi_v<T>;
+        constexpr std::size_t n = N - 1;  // Number of subintervals
 
         for (std::size_t i = 0; i < N; ++i) {
-            T theta = pi * T(i) / T(N - 1);
+            T theta = pi * T(i) / T(n);
             this->abscissas[i] = -std::cos(theta);
 
-            // Compute weights using FFT-based approach for efficiency
-            T w = T(2) / T(N - 1);
-            if (i == 0 || i == N - 1) {
-                w /= T(2);
+            // Compute Clenshaw-Curtis weights using the standard formula
+            // w_k = c_k * (2/n) * sum_{j=0}^{n/2} b_j * cos(2*j*k*pi/n)
+            // where b_0 = 1, b_{n/2} = 1, b_j = 2 for 0 < j < n/2
+            // and c_0 = c_n = 1/2, c_k = 1 for 0 < k < n
+
+            T w = T(0);
+
+            // Handle the summation properly
+            std::size_t max_j = n / 2;
+            for (std::size_t j = 0; j <= max_j; ++j) {
+                T cos_term = std::cos(T(2) * j * theta);
+                T b_j;
+
+                if (j == 0 || j == max_j) {
+                    b_j = T(1);
+                } else {
+                    b_j = T(2);
+                }
+
+                // Each term contributes: b_j / (1 - 4*j^2) * cos(2*j*theta)
+                // Note: 1/(1-4j^2) = -1/(4j^2-1) for j > 0
+                if (j == 0) {
+                    w += b_j * cos_term;  // j=0: 1/(1-0) = 1
+                } else {
+                    w -= b_j * cos_term / (T(4) * j * j - T(1));
+                }
             }
 
-            for (std::size_t j = 1; j < (N - 1) / 2; ++j) {
-                w -= T(2) * std::cos(T(2) * j * theta) / (T(4) * j * j - T(1));
+            w *= T(2) / T(n);
+
+            // Apply endpoint factor
+            if (i == 0 || i == n) {
+                w /= T(2);
             }
 
             this->weights[i] = w;

@@ -224,30 +224,40 @@ TYPED_TEST(IntegrationResultTest, RelativeError) {
 }
 
 // Test with NaN and infinity
+// NOTE: These tests verify that integration_result can handle special floating-point values.
+// When -ffast-math is enabled, std::isnan() and std::isinf() are unreliable because
+// the compiler assumes no NaN/inf values exist. We skip this test in that case.
+#if !defined(__FAST_MATH__) && (!defined(__FINITE_MATH_ONLY__) || __FINITE_MATH_ONLY__ == 0)
 TYPED_TEST(IntegrationResultTest, SpecialValues) {
     using T = TypeParam;
 
+    // Use volatile to prevent constexpr optimization that might eliminate NaN/inf
+    volatile T nan_val = std::numeric_limits<T>::quiet_NaN();
+    volatile T inf_val = std::numeric_limits<T>::infinity();
+
     // NaN value
     {
-        integration_result<T> result(std::numeric_limits<T>::quiet_NaN(), T(1e-6), 100);
+        integration_result<T> result(static_cast<T>(nan_val), T(1e-6), 100);
         EXPECT_TRUE(std::isnan(result.value()));
+        // relative_error for NaN value should also be NaN
         EXPECT_TRUE(std::isnan(result.relative_error()));
     }
 
     // Infinite value
     {
-        integration_result<T> result(std::numeric_limits<T>::infinity(), T(1e-6), 100);
+        integration_result<T> result(static_cast<T>(inf_val), T(1e-6), 100);
         EXPECT_TRUE(std::isinf(result.value()));
         EXPECT_EQ(result.relative_error(), T(0)); // 1e-6/inf = 0
     }
 
     // Infinite error
     {
-        integration_result<T> result(T(1.0), std::numeric_limits<T>::infinity(), 100);
+        integration_result<T> result(T(1.0), static_cast<T>(inf_val), 100);
         EXPECT_TRUE(std::isinf(result.error()));
         EXPECT_TRUE(std::isinf(result.relative_error()));
     }
 }
+#endif
 
 // Test precision preservation
 TYPED_TEST(IntegrationResultTest, PrecisionPreservation) {
