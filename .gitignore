@@ -3,6 +3,8 @@
 # except do not ignore .gitignore. note: may omit if .gitignore is explicitly
 # tracked
 !/.gitignore
+# do not ignore .github for workflows
+!/.github/
 
 random_elements.synctex.gz
 /build*
