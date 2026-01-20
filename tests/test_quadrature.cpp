@@ -4,9 +4,9 @@
 #include <functional>
 #include <array>
 #include <limits>
-#include "../include/quadrature/quadrature_rules.hpp"
+#include <limes/algorithms/quadrature/quadrature.hpp>
 
-using namespace calckit::quadrature;
+using namespace limes::algorithms::quadrature;
 
 // Helper function for testing polynomial integration
 template <typename T>
@@ -126,8 +126,6 @@ TYPED_TEST(QuadratureTest, GaussLegendre3) {
     this->test_polynomial_exactness(rule, 5); // 2n-1 = 5
 }
 
-// Gauss-Legendre 4 not provided in header, skip this test
-
 TYPED_TEST(QuadratureTest, GaussLegendre5) {
     using T = TypeParam;
     gauss_legendre<T, 5> rule;
@@ -243,10 +241,6 @@ TYPED_TEST(QuadratureTest, MidpointRule) {
     this->test_weight_sum(rule);
     this->test_polynomial_exactness(rule, 1); // Midpoint rule is exact for linear
 }
-
-// Newton-Cotes rules not in header, skip this test
-
-// Chebyshev quadrature not in header, skip this test
 
 // Test Tanh-Sinh quadrature nodes
 TYPED_TEST(QuadratureTest, TanhSinhQuadrature) {
@@ -370,8 +364,6 @@ TEST(QuadratureAdaptive, SingularFunction) {
     double exact = M_PI / 2.0;
 
     // Use a high-order Gauss-Kronrod rule with many points
-    // Note: tanh-sinh is best used through the integrator interface, not manually
-    // For this test, we use Gauss-Kronrod which handles endpoint singularities adequately
     gauss_kronrod_15<double> rule;
     double sum = 0.0;
     for (size_t i = 0; i < rule.size(); ++i) {
@@ -380,21 +372,6 @@ TEST(QuadratureAdaptive, SingularFunction) {
 
     // Gauss-Kronrod with 15 points should get reasonable accuracy for this integral
     EXPECT_NEAR(sum, exact, 0.01);
-}
-
-// Test quadrature rule factory/selection
-TEST(QuadratureSelection, RuleSelection) {
-    // Test that we can create rules dynamically
-    auto create_rule = [](int order) {
-        if (order <= 5) {
-            return std::make_unique<gauss_legendre<double, 5>>();
-        } else {
-            return std::make_unique<gauss_legendre<double, 5>>();
-        }
-    };
-
-    auto rule = create_rule(3);
-    EXPECT_EQ(rule->size(), 5);
 }
 
 // Test custom quadrature rule
@@ -422,59 +399,4 @@ TEST(CustomQuadrature, UserDefinedRule) {
         sum += rule.weight(i);
     }
     EXPECT_NEAR(sum, 2.0, 1e-14);
-}
-
-// Benchmark different quadrature rules (disabled by default)
-TEST(QuadratureBenchmark, DISABLED_CompareRules) {
-    // Complex oscillatory function
-    auto f = [](double x) {
-        return std::sin(10.0 * x) * std::exp(-x * x);
-    };
-
-    struct result {
-        std::string name;
-        double value;
-        size_t points;
-        double time_us;
-    };
-
-    std::vector<result> results;
-
-    auto benchmark = [&](auto& rule, const std::string& name) {
-        auto start = std::chrono::high_resolution_clock::now();
-
-        double sum = 0.0;
-        for (size_t i = 0; i < rule.size(); ++i) {
-            sum += rule.weight(i) * f(rule.abscissa(i));
-        }
-
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-        results.push_back({name, sum, rule.size(),
-                          static_cast<double>(duration.count())});
-    };
-
-    gauss_legendre<double, 3> gl3;
-    gauss_legendre<double, 5> gl5;
-    gauss_kronrod_15<double> gk15;
-    clenshaw_curtis<double, 17> cc17;
-    simpson_rule<double> simp;
-    trapezoidal_rule<double> trap;
-
-    benchmark(gl3, "Gauss-Legendre 3");
-    benchmark(gl5, "Gauss-Legendre 5");
-    benchmark(gk15, "Gauss-Kronrod 15");
-    benchmark(cc17, "Clenshaw-Curtis 17");
-    benchmark(simp, "Simpson's Rule");
-    benchmark(trap, "Trapezoidal Rule");
-
-    std::cout << "\nQuadrature Rule Comparison:\n";
-    std::cout << "----------------------------\n";
-    for (const auto& r : results) {
-        std::cout << std::setw(20) << r.name << ": "
-                  << "value = " << std::setw(12) << r.value
-                  << ", points = " << std::setw(3) << r.points
-                  << ", time = " << std::setw(6) << r.time_us << " us\n";
-    }
 }

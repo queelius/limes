@@ -5,9 +5,9 @@
 #include <cmath>
 #include <limits>
 #include <array>
-#include "../include/accumulators/accumulators.hpp"
+#include <limes/algorithms/accumulators/accumulators.hpp>
 
-using namespace calckit::accumulators;
+using namespace limes::algorithms::accumulators;
 
 // Test fixture for accumulator tests
 template <typename T>
@@ -320,10 +320,6 @@ TYPED_TEST(AccumulatorTest, ComparativeAccuracy) {
 TYPED_TEST(AccumulatorTest, EdgeCases) {
     using T = TypeParam;
 
-    // Note: NaN and Inf handling depends on compiler optimization settings
-    // and may not propagate through compensated accumulators as expected.
-    // Testing overflow/underflow behavior instead which is more predictable.
-
     // Test overflow behavior
     {
         neumaier_accumulator<T> acc;
@@ -362,49 +358,6 @@ TEST(AccumulatorResetTest, ResetFunctionality) {
 
     acc += 5.0;
     EXPECT_EQ(acc(), 5.0);
-}
-
-// Performance comparison test (not a unit test, but useful for benchmarking)
-TEST(AccumulatorPerformance, DISABLED_PerformanceBenchmark) {
-    const size_t n = 10000000;
-    std::vector<double> data(n);
-
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<double> dist(-1.0, 1.0);
-
-    for (auto& val : data) {
-        val = dist(gen);
-    }
-
-    // Benchmark different accumulators
-    auto benchmark = [&data](auto& acc, const std::string& name) {
-        auto start = std::chrono::high_resolution_clock::now();
-
-        for (const auto& val : data) {
-            acc += val;
-        }
-
-        // No finalize needed
-
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-        std::cout << name << ": " << duration.count() << " us, result = "
-                  << acc() << std::endl;
-    };
-
-    simple_accumulator<double> simple;
-    kahan_accumulator<double> kahan;
-    neumaier_accumulator<double> neumaier;
-    klein_accumulator<double> klein;
-    pairwise_accumulator<double> pairwise;
-
-    benchmark(simple, "Simple");
-    benchmark(kahan, "Kahan");
-    benchmark(neumaier, "Neumaier");
-    benchmark(klein, "Klein");
-    benchmark(pairwise, "Pairwise");
 }
 
 // Test accumulator with different numeric types

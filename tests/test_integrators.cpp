@@ -4,10 +4,9 @@
 #include <limits>
 #include <numbers>
 #include <complex>
-#include "../include/integrators/univariate_integrator.hpp"
-#include "../include/calckit.hpp"
+#include <limes/limes.hpp>
 
-using namespace calckit;
+using namespace limes::algorithms;
 
 // Test functions with known integrals
 namespace test_functions {
@@ -30,26 +29,6 @@ namespace test_functions {
     // Oscillatory: sin(10x), integral from 0 to pi = 0
     template<typename T>
     T oscillatory(T x) { return std::sin(T(10) * x); }
-
-    // Singular at endpoint: 1/sqrt(x), integral from 0 to 1 = 2
-    template<typename T>
-    T singular_endpoint(T x) {
-        if (x <= 0) return T(0);
-        return T(1) / std::sqrt(x);
-    }
-
-    // Discontinuous: step function
-    template<typename T>
-    T step_function(T x) {
-        return x < T(0.5) ? T(0) : T(1);
-    }
-
-    // Peaked function: narrow Gaussian
-    template<typename T>
-    T peaked(T x) {
-        T sigma = T(0.01);
-        return std::exp(-(x * x) / (T(2) * sigma * sigma)) / (sigma * std::sqrt(T(2) * std::numbers::pi_v<T>));
-    }
 }
 
 // Test fixture for integrator tests
@@ -119,7 +98,7 @@ TYPED_TEST(IntegratorTest, QuadratureIntegratorGaussKronrod) {
 TYPED_TEST(IntegratorTest, AdaptiveIntegrator) {
     using T = TypeParam;
 
-    auto integrator = make_adaptive_integrator<T>();
+    auto integrator = adaptive_integrator<T>{};
 
     // Simple function
     this->test_integration(integrator,
@@ -140,7 +119,7 @@ TYPED_TEST(IntegratorTest, AdaptiveIntegrator) {
 TYPED_TEST(IntegratorTest, RombergIntegrator) {
     using T = TypeParam;
 
-    auto integrator = make_romberg<T>();
+    auto integrator = romberg_integrator<T>{};
 
     // Smooth function
     this->test_integration(integrator,
@@ -167,118 +146,21 @@ TYPED_TEST(IntegratorTest, SimpsonIntegrator) {
     EXPECT_NEAR(result.value(), T(0), this->strict_tol);
 }
 
-// Test double exponential (tanh-sinh) integrator
-// NOTE: The tanh-sinh implementation has known issues and returns incorrect values.
-// This test is disabled until the implementation is fixed.
-// The algorithm needs proper handling of the double-exponential transformation.
-TYPED_TEST(IntegratorTest, DISABLED_TanhSinhIntegrator) {
+// Test finite interval approximation for Gaussian integral
+TYPED_TEST(IntegratorTest, GaussianIntegral) {
     using T = TypeParam;
 
-    auto integrator = make_tanh_sinh<T>();
-
-    // Test with a well-behaved function: exp(-x^2) from -1 to 1
-    // This is a smooth function that tanh-sinh handles well
-    auto f = [](T x) -> T {
-        return std::exp(-x * x);
-    };
-
-    // Integral of exp(-x^2) from -1 to 1 is approximately 1.493648
-    auto result = integrator(f, T(-1), T(1), this->loose_tol);
-
-    // Use loose tolerance since tanh-sinh may not achieve high precision on first try
-    EXPECT_NEAR(result.value(), T(1.493648265624854), this->loose_tol);
-}
-
-// Test infinite interval integration
-// NOTE: These tests are skipped because the tanh-sinh implementation
-// for infinite intervals may not converge in reasonable time.
-// This is a known limitation that should be addressed in the implementation.
-TYPED_TEST(IntegratorTest, InfiniteIntervals) {
-    using T = TypeParam;
-
-    // For now, test finite approximations to infinite integrals
-    // Gaussian integral from -5 to 5 (captures most of the mass)
-    {
-        auto integrator = make_adaptive_integrator<T>();
-        auto result = integrator(
-            test_functions::gaussian<T>,
-            T(-5), T(5),
-            this->default_tol
-        );
-
-        // sqrt(pi) = 1.7724538509055159
-        // erf(5) * sqrt(pi) is very close to sqrt(pi)
-        EXPECT_NEAR(result.value(), std::sqrt(std::numbers::pi_v<T>), this->loose_tol);
-    }
-
-    // Semi-infinite approximation: exp(-x) from 0 to 30 should be very close to 1
-    {
-        auto f = [](T x) { return std::exp(-x); };
-        auto integrator = make_adaptive_integrator<T>();
-        auto result = integrator(f, T(0), T(30), this->default_tol);
-
-        EXPECT_NEAR(result.value(), T(1), this->loose_tol);
-    }
-}
-
-// Test high-level integration interface
-TYPED_TEST(IntegratorTest, HighLevelInterface) {
-    using T = TypeParam;
-
-    // Test adaptive integration
-    {
-        auto result = integrate_adaptive(
-            test_functions::quadratic<T>, T(0), T(1), this->default_tol
-        );
-        EXPECT_NEAR(result.value(), T(1)/T(3), this->default_tol);
-    }
-
-    // Test robust integration
-    {
-        auto result = integrate_robust(
-            test_functions::exponential<T>, T(0), T(1), this->default_tol
-        );
-        EXPECT_NEAR(result.value(), std::exp(T(1)) - T(1), this->default_tol);
-    }
-
-    // Test precise integration
-    {
-        auto result = integrate_precise(
-            test_functions::sine<T>, T(0), std::numbers::pi_v<T>, this->strict_tol
-        );
-        EXPECT_NEAR(result.value(), T(2), this->strict_tol);
-    }
-}
-
-// Test oscillatory integration
-TYPED_TEST(IntegratorTest, OscillatoryIntegration) {
-    using T = TypeParam;
-
-    // High-frequency oscillation: sin(100x) from 0 to pi
-    // Integral = [-cos(100x)/100] from 0 to pi = (-cos(100*pi) + cos(0))/100 = (-1 + 1)/100 = 0
-    auto f = [](T x) { return std::sin(T(100) * x); };
-
-    auto result = integrate<T>::oscillatory(
-        f, T(0), std::numbers::pi_v<T>, T(100), this->default_tol
+    // For Gaussian integral from -5 to 5 (captures most of the mass)
+    auto integrator = adaptive_integrator<T>{};
+    auto result = integrator(
+        test_functions::gaussian<T>,
+        T(-5), T(5),
+        this->default_tol
     );
 
-    // The exact integral is 0 (cos(100*pi) = 1)
-    EXPECT_NEAR(result.value(), T(0), this->loose_tol);
-}
-
-// Test integrator builder
-TYPED_TEST(IntegratorTest, IntegratorBuilder) {
-    using T = TypeParam;
-
-    auto integrator = make_integrator<T>()
-        .with_tolerance(this->strict_tol)
-        .with_parallel(false);
-
-    auto result = integrator.integrate(
-        test_functions::exponential<T>, T(0), T(1)
-    );
-
-    EXPECT_NEAR(result.value(), std::exp(T(1)) - T(1), this->strict_tol * T(10));
+    // sqrt(pi) = 1.7724538509055159
+    // erf(5) * sqrt(pi) is very close to sqrt(pi)
+    EXPECT_NEAR(result.value(), std::sqrt(std::numbers::pi_v<T>), this->loose_tol);
 }
 
 // Test error estimation
@@ -286,18 +168,16 @@ TEST(IntegratorErrorEstimation, ErrorBounds) {
     // Use a function where we can calculate the truncation error
     auto f = [](double x) { return std::exp(x); };
 
-    auto integrator = make_adaptive_integrator<double>();
+    auto integrator = adaptive_integrator<double>{};
     auto result = integrator(f, 0.0, 1.0, 1e-10);
 
     double exact = std::exp(1.0) - 1.0;
-    double actual_error = std::abs(result.value() - exact);
 
     // The integrator achieves very high accuracy (near machine epsilon)
     // Just verify that the result is accurate
     EXPECT_NEAR(result.value(), exact, 1e-10);
 
     // The error estimate should be a reasonable order of magnitude
-    // (we don't require specific bounds since the algorithm may achieve machine precision)
     EXPECT_GE(result.error(), 0.0);  // Error should be non-negative
 }
 
@@ -311,7 +191,7 @@ TEST(IntegratorConvergence, ConvergenceRates) {
     std::vector<size_t> evaluations;
 
     for (double tol : tolerances) {
-        auto integrator = make_adaptive_integrator<double>();
+        auto integrator = adaptive_integrator<double>{};
         auto result = integrator(f, 0.0, M_PI, tol);
 
         errors.push_back(std::abs(result.value() - exact));
@@ -339,7 +219,7 @@ TEST(IntegratorSpecialCases, DiscontinuousFunction) {
     auto f = [](double x) { return x < 0.5 ? 0.0 : 1.0; };
 
     // Exact integral from 0 to 1 is 0.5
-    auto integrator = make_adaptive_integrator<double>();
+    auto integrator = adaptive_integrator<double>{};
     auto result = integrator(f, 0.0, 1.0, 1e-6);
 
     // Adaptive integrator should handle discontinuity reasonably well
@@ -356,7 +236,7 @@ TEST(IntegratorSpecialCases, PeakedFunction) {
     };
 
     // Integral from -1 to 1 should be close to 1 (normalized Gaussian)
-    auto integrator = make_adaptive_integrator<double>();
+    auto integrator = adaptive_integrator<double>{};
     auto result = integrator(f, -1.0, 1.0, 1e-8);
 
     EXPECT_NEAR(result.value(), 1.0, 1e-6);
@@ -369,7 +249,7 @@ TEST(IntegratorLambdas, CapturedVariables) {
 
     auto f = [a, b](double x) { return a * x + b; };
 
-    auto integrator = make_adaptive_integrator<double>();
+    auto integrator = adaptive_integrator<double>{};
     auto result = integrator(f, 0.0, 1.0, 1e-10);
 
     // Integral of 2x + 3 from 0 to 1 = x^2 + 3x |_0^1 = 1 + 3 = 4
@@ -382,7 +262,7 @@ double test_func_ptr(double x) {
 }
 
 TEST(IntegratorFunctionTypes, FunctionPointer) {
-    auto integrator = make_adaptive_integrator<double>();
+    auto integrator = adaptive_integrator<double>{};
     auto result = integrator(test_func_ptr, 0.0, 2.0, 1e-10);
 
     // Integral of x^3 from 0 to 2 = x^4/4 |_0^2 = 4
@@ -393,7 +273,7 @@ TEST(IntegratorFunctionTypes, FunctionPointer) {
 TEST(IntegratorFunctionTypes, StdFunction) {
     std::function<double(double)> f = [](double x) { return std::cos(x); };
 
-    auto integrator = make_adaptive_integrator<double>();
+    auto integrator = adaptive_integrator<double>{};
     auto result = integrator(f, 0.0, M_PI/2, 1e-10);
 
     // Integral of cos(x) from 0 to pi/2 = sin(pi/2) - sin(0) = 1
@@ -405,7 +285,7 @@ TEST(IntegratorStability, NumericalStability) {
     // Test with very small interval
     {
         auto f = [](double x) { return x; };
-        auto integrator = make_adaptive_integrator<double>();
+        auto integrator = adaptive_integrator<double>{};
         auto result = integrator(f, 0.0, 1e-15, 1e-10);
 
         // Should handle tiny intervals gracefully
@@ -415,7 +295,7 @@ TEST(IntegratorStability, NumericalStability) {
     // Test with very large values
     {
         auto f = [](double x) { return 1e10; };
-        auto integrator = make_adaptive_integrator<double>();
+        auto integrator = adaptive_integrator<double>{};
         auto result = integrator(f, 0.0, 1.0, 1e-10);
 
         EXPECT_NEAR(result.value(), 1e10, 1e-2);
@@ -443,50 +323,5 @@ TEST(IntegratorAccumulators, AccumulatorComparison) {
 
         double expected = 1e10 * M_PI + 2.0; // Integral of 1e10 + sin(x)
         EXPECT_NEAR(result.value(), expected, 100.0);
-    }
-}
-
-// Performance benchmark (disabled by default)
-TEST(IntegratorBenchmark, DISABLED_PerformanceComparison) {
-    auto f = [](double x) { return std::exp(-x * x); };
-
-    struct benchmark_result {
-        std::string name;
-        double value;
-        size_t evaluations;
-        double time_ms;
-    };
-
-    std::vector<benchmark_result> results;
-
-    auto benchmark = [&](auto integrator, const std::string& name) {
-        auto start = std::chrono::high_resolution_clock::now();
-        auto result = integrator(f, -5.0, 5.0, 1e-8);
-        auto end = std::chrono::high_resolution_clock::now();
-
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-        results.push_back({
-            name,
-            result.value(),
-            result.evaluations(),
-            duration.count() / 1000.0
-        });
-    };
-
-    benchmark(make_adaptive_integrator<double>(), "Adaptive");
-    benchmark(make_romberg<double>(), "Romberg");
-    benchmark(make_tanh_sinh<double>(), "Tanh-Sinh");
-    // Use quadrature_integrator with simpson_rule
-    using simpson = quadrature_integrator<double, quadrature::simpson_rule<double>>;
-    benchmark(simpson{quadrature::simpson_rule<double>{}}, "Simpson");
-
-    std::cout << "\nIntegrator Performance Comparison:\n";
-    std::cout << "----------------------------------\n";
-    for (const auto& r : results) {
-        std::cout << std::setw(15) << r.name
-                  << ": value = " << std::setw(12) << r.value
-                  << ", evals = " << std::setw(6) << r.evaluations
-                  << ", time = " << std::setw(8) << r.time_ms << " ms\n";
     }
 }

@@ -2,213 +2,179 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Project Vision
 
-Header-only C++ library for numerical integration, differentiation, and ODE solving using modern C++20 with concept-based generic programming. The library emphasizes composability, allowing mix-and-match of quadrature rules, accumulators, and transforms.
+**limes** is a pedagogical C++20 header-only library demonstrating generic programming principles for numerical calculus. Inspired by Stepanov's approach: define minimal algebraic concepts, implement algorithms generically against those concepts, and compose solutions from simple, orthogonal parts.
 
-## Build System
+The goal is **clarity over feature count**. Each component should be a teachable example of good API design.
 
-### CMake (Recommended)
+## Build Commands
+
 ```bash
-# Configure
+# Configure and build
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-
-# Build
 cmake --build build
 
-# Build and run all tests
-cmake --build build --target test
+# Run all tests
+ctest --test-dir build --output-on-failure
 
-# Run specific test executable
+# Run specific test suite
+./build/tests/test_expr
 ./build/tests/test_integrators
 
-# Build examples
-cmake --build build --target demo
+# Run tests matching a pattern
+ctest --test-dir build -R "BoxIntegral"
+ctest --test-dir build -R "ProductIntegral"
 
-# Coverage report (Debug mode only)
+# Coverage (Debug mode)
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --target coverage
-# Report: build/coverage/html/index.html
+
+# Build and run demo
+cmake --build build --target demo && ./build/examples/demo
 ```
 
-### Direct Compilation
-```bash
-# Build ODE test
-g++ -O3 -std=c++2a -Wall -o ode_test include/ode/ode_test.cpp -I.
+## Architecture: Two-Layer Design
 
-# Build examples
-g++ -O3 -std=c++2a -Wall -o demo examples/demo.cpp -I.
-g++ -O3 -std=c++2a -Wall -o simple_demo examples/simple_demo.cpp -I.
-
-# Legacy makefile support
-make integration_test
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  limes::expr — Expression Layer (user-facing API)              │
+│  Composable calculus expressions with symbolic differentiation  │
+│  and numerical integration                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  limes::methods — Integration Method Objects                    │
+│  gauss<N>(), monte_carlo(), adaptive()                         │
+├─────────────────────────────────────────────────────────────────┤
+│  limes::algorithms — Numerical Backend                          │
+│  Integrators, quadrature rules, accumulators                    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Compilation Requirements
-- C++20 standard (`-std=c++2a`)
-- Include path: `-I.` (root directory)
-- Recommended flags: `-O3 -march=native -Wall`
-- Optional: `-mavx2 -mfma` for SIMD, `-fopenmp` for parallelization
+### Expression Layer (`limes::expr`)
 
-## Architecture
+Expression templates for zero-overhead calculus expressions:
 
-### Composable Design Philosophy
-
-The library uses an **orthogonal component architecture** where integration algorithms are composed from independent, pluggable parts. See ARCHITECTURE.md for detailed design rationale.
-
-Key composition layers:
-1. **Accumulators**: Control numerical precision (Simple, Kahan, Neumaier, Klein, Pairwise)
-2. **Quadrature Rules**: Define integration nodes/weights (Gauss-Legendre, Gauss-Kronrod, Tanh-Sinh, etc.)
-3. **Integrators**: Combine rules + accumulators into algorithms
-4. **Transforms**: Handle special domains (infinite intervals, singularities)
-5. **Parallel Execution**: Work-stealing parallelization layer
-
-### Namespace Organization
-- `calckit` (alias: `ai`): Main namespace for integration
-- `alex::math`: ODE solvers (legacy namespace from earlier design)
-
-### Key Header Files
-
-**Main Entry Point:**
-- `include/calckit.hpp`: High-level interface with `integrate<T>::adaptive()`, builder pattern, convenience functions
-
-**Core Infrastructure:**
-- `include/concepts/integrator_concepts.hpp`: C++20 concepts for all template parameters
-- `include/core/integration_result.hpp`: Result type with value, error, convergence info
-
-**Component Libraries:**
-- `include/accumulators/accumulators.hpp`: Precision control strategies
-- `include/quadrature/quadrature_rules.hpp`: Node/weight generation
-- `include/integrators/univariate_integrator.hpp`: Core integration algorithms
-- `include/transforms/coordinate_transforms.hpp`: Change of variables
-- `include/parallel/parallel_integration.hpp`: Parallel execution policies
-
-**Legacy Integrators (older design):**
-- `include/numerical_integrators/*.hpp`: Original single-file integrators
-
-**Differentiation:**
-- `include/numerical_differentiation.hpp`: Central finite difference, gradients
-- `include/central_finite_difference.hpp`: Core differentiation algorithms
-
-**Antiderivatives:**
-- `include/antiderivative.hpp`: Symbolic antiderivative computation
-
-**ODE Solvers:**
-- `include/ode/euler_ode1.hpp`, `include/ode/rk4_ode1.hpp`: First-order ODEs
-- `include/ode/euler_ode2.hpp`, `include/ode/rk4_ode2.hpp`: Second-order ODEs
-
-### Usage Patterns
-
-**Simple Integration:**
 ```cpp
-auto result = integrate_adaptive(f, a, b, 1e-8);
+using namespace limes::expr;
+
+auto x = arg<0>;                              // Variable (positional)
+auto f = sin(x*x) + exp(-x);                  // Composable expression
+
+// v3.0 API: fluent builders
+auto df = derivative(f).wrt<0>();             // Symbolic differentiation
+auto I = integral(f).over<0>(0.0, 1.0);       // Integration expression
+auto result = I.eval();                       // Returns integration_result<T>
+
+// Methods as objects
+auto r = I.eval(methods::gauss<15>());        // Specific method
+auto r = I.eval(methods::monte_carlo(10000)); // Monte Carlo
 ```
 
-**Custom Composition:**
+**Key types:**
+- `Const<T>`, `Var<N, T>`, `NamedVar<T>` — Leaf nodes
+- `Binary<Op, L, R>`, `Unary<Op, E>` — Composite nodes
+- `UnaryFunc<Tag, E>` — Primitives: `exp`, `log`, `sin`, `cos`, `sqrt`, `abs`
+- `Integral<E, Dim, Lo, Hi>` — 1D integration node
+- `BoxIntegral<E, Dims>` — N-D box integration (Monte Carlo)
+- `ProductIntegral<I1, I2>` — Separable integral composition
+
+### Methods Layer (`limes::methods`)
+
+Integration methods as first-class objects:
+
 ```cpp
-using acc = accumulators::klein_accumulator<double>;
-using rule = quadrature::gauss_kronrod_15<double>;
-quadrature_integrator<double, rule, acc> integrator{rule{}, acc{}};
-auto result = integrator(f, a, b, tol);
+using namespace limes::methods;
+
+gauss_legendre<15, double>{}      // Or use gauss<15>()
+monte_carlo<double>{10000}        // Or monte_carlo(n).with_seed(42)
+adaptive<double>{1e-10}           // Adaptive with tolerance
 ```
 
-**Builder Pattern:**
+### Algorithms Layer (`limes::algorithms`)
+
+Low-level numerical methods with pluggable components:
+
 ```cpp
-auto integrator = make_integrator<double>()
-    .with_quadrature("gauss-legendre")
-    .with_accumulator("neumaier")
-    .with_parallel(true)
-    .with_tolerance(1e-12);
-auto result = integrator.integrate(f, a, b);
+using namespace limes::algorithms;
+
+adaptive_integrator<double> integrator;
+auto result = integrator(f, 0.0, 1.0, 1e-10);
 ```
+
+**Key abstractions:**
+- `Accumulator` concept — Precision strategies (Kahan, Neumaier, Klein)
+- `QuadratureRule` concept — Node/weight generators
+- `Integrator` concept — Combines rules and accumulators
+
+## Namespace Structure
+
+- `limes` (alias: `li`) — Root namespace
+- `limes::expr` — Expression layer (user-facing)
+- `limes::methods` — Integration method objects
+- `limes::algorithms` — Numerical backend
+- `limes::algorithms::concepts` — C++20 concepts
+- `limes::algorithms::accumulators` — Precision control
+- `limes::algorithms::quadrature` — Quadrature rules
+
+## Key Design Patterns
+
+### Variable Set Analysis (`analysis.hpp`)
+
+Compile-time bitset tracking which dimensions an expression depends on:
+
+```cpp
+variable_set_v<Var<0, double>>           // = 0b001
+variable_set_v<Binary<Mul, Var<0>, Var<1>>>  // = 0b011
+```
+
+Used for: separability detection, independence verification, bound dependency analysis.
+
+### Expression Simplification
+
+Operators use `if constexpr` for compile-time simplification:
+- `Zero * anything = Zero`
+- `One * x = x`
+- `Const + Const = Const` (constant folding)
+
+### is_integral Type Trait
+
+Forward-declared in `nodes/binary.hpp`, specialized in `integral.hpp`. This allows `operator*` in `binary.hpp` to exclude `Integral` types (which use `ProductIntegral` instead).
+
+## Extension Points
+
+**New expression primitive:** Add a tag and specialize `UnaryFunc<Tag, E>` with `eval()`, `derivative<Dim>()`, and `to_string()`.
+
+**New accumulator:** Implement `operator+=(T)`, `operator()() const`, and default constructor.
+
+**New quadrature rule:** Implement `size()`, `weight(i)`, `abscissa(i)`.
+
+**New integration method:** Model `IntegrationMethod` concept in `methods/concepts.hpp`.
 
 ## Testing
 
-### Test Structure
-- Google Test framework for unit tests (118+ tests total)
-- Each component has dedicated test file:
-  - `test_accumulators.cpp` (42 tests): Type-parameterized float/double tests
-  - `test_quadrature.cpp`: Quadrature rule validation
-  - `test_integrators.cpp`: Integration algorithm tests
-  - `test_ode_solvers.cpp` (26 tests): ODE solver accuracy and convergence
-  - `test_differentiation.cpp` (34 tests): Derivative and gradient tests
-  - `test_antiderivative.cpp` (16 tests): Antiderivative computation tests
-  - `test_transforms.cpp`: Coordinate transformation tests
-  - `test_parallel.cpp`: Parallel execution tests
-  - `test_concepts.cpp`: C++20 concept validation
-  - `test_integration_result.cpp`: Result type tests
-- `basic_tests.cpp`: Simple validation without GTest dependency
-- Type-parameterized tests use type-aware tolerances (1e-5 for float, 1e-10 for double)
+Google Test with type-parameterized tests for float/double/long double.
 
-### Running Tests
 ```bash
-# All tests
-cd build && ctest --output-on-failure
+# Run expression layer tests
+ctest --test-dir build -R "Expr"
 
-# Specific test suite
-./build/tests/test_integrators
-./build/tests/test_accumulators
-./build/tests/test_ode_solvers
-./build/tests/test_differentiation
-./build/tests/test_antiderivative
-./build/tests/test_quadrature
-./build/tests/test_transforms
-./build/tests/test_parallel
-./build/tests/test_concepts
-./build/tests/test_integration_result
+# Run specific test groups
+ctest --test-dir build -R "BoxIntegral"
+ctest --test-dir build -R "ProductIntegral"
+ctest --test-dir build -R "DerivativeBuilder"
 
-# Run with verbose output
-ctest -V
-
-# Run tests matching pattern
-ctest -R "accumulator|integrator"
-
-# With coverage (Debug build)
-cmake --build build --target coverage
+# Verbose output
+ctest --test-dir build -V
 ```
 
-### Coverage Requirements
-When adding features, ensure test coverage using the coverage target. Coverage reports exclude test files and external dependencies.
-
-## Design Constraints
-
-### Type Safety
-All integrators define `value_type` and `result_type`. Use concepts to validate template parameters at compile time.
-
-### Header-Only Implementation
-All functionality in headers for zero-cost abstraction through inlining. No .cpp files in library core (only tests/examples).
-
-### Performance Features
-- SIMD: AVX2 support via `-mavx2` (controlled by `ENABLE_AVX2` CMake option)
-- Parallel: OpenMP support via `ENABLE_OPENMP` option
-- Sanitizers: Address/undefined behavior sanitizers enabled in Debug builds
-
-## Common Development Patterns
-
-### Adding New Quadrature Rules
-Implement in `include/quadrature/quadrature_rules.hpp`, must satisfy `QuadratureRule` concept with nodes, weights, and order.
-
-### Adding New Accumulators
-Implement in `include/accumulators/accumulators.hpp`, must provide `operator+=()`, `operator()()`, and `value_type`.
-
-### Adding New Integrators
-Compose existing rules + accumulators in `include/integrators/`, or create new algorithm following concept requirements.
-
-### ODE Solver Pattern
-ODE solvers use interval-based stepping with `alex::math` namespace. See existing Euler/RK4 implementations for patterns.
-
-### Type-Aware Testing
-When writing tests for floating-point code, use type-aware tolerances:
+Use type-aware tolerances:
 ```cpp
-TYPED_TEST(MyTest, SomeTest) {
-    using T = TypeParam;
-    T tolerance = std::is_same_v<T, float> ? T(1e-5) : T(1e-10);
-    EXPECT_NEAR(result, expected, tolerance);
-}
+T tol = std::is_same_v<T, float> ? T(1e-5) : T(1e-10);
 ```
 
-### Differentiation and Antiderivatives
-- Use `central_finite_difference()` for derivatives (8th-order accurate)
-- Use `grad()` for gradients of multivariable functions
-- Use `antideriv()` to create antiderivative functors
-- Step size `h` typically 1e-3 to 1e-5 for double precision
+## API Conventions
+
+- **eval() vs evaluate()**: Use `eval()`. The `evaluate()` method is deprecated.
+- **Builder pattern**: `derivative(f).wrt<0>()`, `integral(f).over<0>(a, b)`
+- **Method objects**: Pass to `eval()`: `I.eval(methods::gauss<7>())`
+- **Named variables**: `var(0, "x")` or `named<0>("x")` for debugging

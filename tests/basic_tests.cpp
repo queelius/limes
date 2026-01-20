@@ -2,9 +2,9 @@
 #include <cmath>
 #include <cassert>
 #include <numbers>
-#include "../include/calckit.hpp"
+#include <limes/limes.hpp>
 
-using namespace calckit;
+using namespace limes::algorithms;
 
 template<typename T>
 bool approx_equal(T a, T b, T tol = T(1e-10)) {
@@ -15,7 +15,8 @@ void test_simple_polynomial() {
     std::cout << "Testing polynomial integration... ";
 
     auto f = [](double x) { return x * x; };
-    auto result = integrate_adaptive(f, 0.0, 1.0, 1e-12);
+    auto integrator = adaptive_integrator<double>{};
+    auto result = integrator(f, 0.0, 1.0, 1e-12);
 
     assert(approx_equal(result.value(), 1.0/3.0, 1e-10));
     std::cout << "PASSED\n";
@@ -25,7 +26,8 @@ void test_trigonometric() {
     std::cout << "Testing trigonometric integration... ";
 
     auto f = [](double x) { return std::sin(x); };
-    auto result = integrate_adaptive(f, 0.0, std::numbers::pi, 1e-12);
+    auto integrator = adaptive_integrator<double>{};
+    auto result = integrator(f, 0.0, std::numbers::pi, 1e-12);
 
     assert(approx_equal(result.value(), 2.0, 1e-10));
     std::cout << "PASSED\n";
@@ -35,23 +37,22 @@ void test_exponential() {
     std::cout << "Testing exponential integration... ";
 
     auto f = [](double x) { return std::exp(-x); };
-    auto result = integrate_adaptive(f, 0.0, 10.0, 1e-12);
+    auto integrator = adaptive_integrator<double>{};
+    auto result = integrator(f, 0.0, 10.0, 1e-12);
 
     double exact = 1.0 - std::exp(-10.0);
     assert(approx_equal(result.value(), exact, 1e-10));
     std::cout << "PASSED\n";
 }
 
-void test_infinite_interval() {
-    std::cout << "Testing infinite interval integration... ";
+void test_gaussian_integral() {
+    std::cout << "Testing Gaussian integral... ";
 
-    // NOTE: Tanh-sinh for truly infinite intervals has convergence issues.
-    // Use a finite approximation instead.
     auto f = [](double x) { return std::exp(-x * x); };
 
     // Integrate from -10 to 10 instead of -inf to inf
     // exp(-100) is negligible so this captures almost all the mass
-    auto integrator = make_adaptive_integrator<double>();
+    auto integrator = adaptive_integrator<double>{};
     auto result = integrator(f, -10.0, 10.0, 1e-8);
 
     double exact = std::sqrt(std::numbers::pi);
@@ -99,22 +100,8 @@ void test_quadrature_rules() {
 
     auto result = integrator(f, -1.0, 1.0);
 
-    // ∫_{-1}^{1} x³ dx = 0
+    // x^3 from -1 to 1 = 0
     assert(approx_equal(result.value(), 0.0, 1e-14));
-    std::cout << "PASSED\n";
-}
-
-void test_transforms() {
-    std::cout << "Testing coordinate transforms... ";
-
-    // Test interval mapping
-    transforms::interval_map<double> map(0.0, 10.0);
-
-    assert(approx_equal(map.forward(-1.0), 0.0));
-    assert(approx_equal(map.forward(0.0), 5.0));
-    assert(approx_equal(map.forward(1.0), 10.0));
-    assert(approx_equal(map.jacobian(0.0), 5.0));
-
     std::cout << "PASSED\n";
 }
 
@@ -136,21 +123,33 @@ void test_integration_result_operations() {
     std::cout << "PASSED\n";
 }
 
+void test_romberg_integrator() {
+    std::cout << "Testing Romberg integrator... ";
+
+    auto f = [](double x) { return std::exp(x); };
+    auto integrator = romberg_integrator<double>{};
+    auto result = integrator(f, 0.0, 1.0, 1e-12);
+
+    double exact = std::exp(1.0) - 1.0;
+    assert(approx_equal(result.value(), exact, 1e-10));
+    std::cout << "PASSED\n";
+}
+
 int main() {
-    std::cout << "Running Algebraic Integrators Tests\n";
-    std::cout << "====================================\n\n";
+    std::cout << "Running limes Library Tests\n";
+    std::cout << "============================\n\n";
 
     try {
         test_simple_polynomial();
         test_trigonometric();
         test_exponential();
-        test_infinite_interval();
+        test_gaussian_integral();
         test_accumulators();
         test_quadrature_rules();
-        test_transforms();
         test_integration_result_operations();
+        test_romberg_integrator();
 
-        std::cout << "\n====================================\n";
+        std::cout << "\n============================\n";
         std::cout << "All tests PASSED!\n";
         return 0;
 

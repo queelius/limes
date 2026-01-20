@@ -2,11 +2,11 @@
 #include <type_traits>
 #include <complex>
 #include <functional>
-#include "../include/concepts/integrator_concepts.hpp"
-#include "../include/accumulators/accumulators.hpp"
-#include "../include/core/integration_result.hpp"
+#include <limes/algorithms/concepts/concepts.hpp>
+#include <limes/algorithms/accumulators/accumulators.hpp>
+#include <limes/algorithms/core/result.hpp>
 
-using namespace calckit::concepts;
+using namespace limes::algorithms::concepts;
 
 // Basic concept tests
 TEST(ConceptsTest, BasicConcepts) {
@@ -121,11 +121,11 @@ TEST(ConceptsIntegration, PracticalUsage) {
 // Verify concepts work with the library types
 TEST(ConceptsLibrary, LibraryTypes) {
     // Test that library accumulators satisfy the concept
-    using SimpleAcc = calckit::accumulators::simple_accumulator<double>;
+    using SimpleAcc = limes::algorithms::accumulators::simple_accumulator<double>;
     EXPECT_TRUE((Accumulator<SimpleAcc, double>));
 
     // Test that integration result works with Field concept
     EXPECT_TRUE(Field<double>);
-    calckit::integration_result<double> result(1.0, 1e-6, 100);
+    limes::algorithms::integration_result<double> result(1.0, 1e-6, 100);
     EXPECT_EQ(result.value(), 1.0);
 }

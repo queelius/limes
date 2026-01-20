@@ -14,7 +14,7 @@ endif()
 
 # Keep basic tests for simple validation
 add_executable(basic_tests basic_tests.cpp)
-target_link_libraries(basic_tests PRIVATE calckit)
+target_link_libraries(basic_tests PRIVATE limes)
 add_test(NAME BasicTests COMMAND basic_tests)
 set_tests_properties(BasicTests PROPERTIES
     TIMEOUT 30
@@ -25,7 +25,7 @@ set_tests_properties(BasicTests PROPERTIES
 add_executable(test_accumulators test_accumulators.cpp)
 target_link_libraries(test_accumulators
     PRIVATE
-    calckit
+    limes
     GTest::gtest
     GTest::gtest_main
     pthread
@@ -35,7 +35,7 @@ gtest_discover_tests(test_accumulators)
 add_executable(test_quadrature test_quadrature.cpp)
 target_link_libraries(test_quadrature
     PRIVATE
-    calckit
+    limes
     GTest::gtest
     GTest::gtest_main
     pthread
@@ -45,82 +45,52 @@ gtest_discover_tests(test_quadrature)
 add_executable(test_integrators test_integrators.cpp)
 target_link_libraries(test_integrators
     PRIVATE
-    calckit
+    limes
     GTest::gtest
     GTest::gtest_main
     pthread
 )
 gtest_discover_tests(test_integrators)
 
-add_executable(test_transforms test_transforms.cpp)
-target_link_libraries(test_transforms
+add_executable(test_result test_result.cpp)
+target_link_libraries(test_result
     PRIVATE
-    calckit
+    limes
     GTest::gtest
     GTest::gtest_main
     pthread
 )
-gtest_discover_tests(test_transforms)
-
-add_executable(test_parallel test_parallel.cpp)
-target_link_libraries(test_parallel
-    PRIVATE
-    calckit
-    GTest::gtest
-    GTest::gtest_main
-    pthread
-)
-gtest_discover_tests(test_parallel)
-
-add_executable(test_integration_result test_integration_result.cpp)
-target_link_libraries(test_integration_result
-    PRIVATE
-    calckit
-    GTest::gtest
-    GTest::gtest_main
-    pthread
-)
-gtest_discover_tests(test_integration_result)
+gtest_discover_tests(test_result)
 
 add_executable(test_concepts test_concepts.cpp)
 target_link_libraries(test_concepts
     PRIVATE
-    calckit
+    limes
     GTest::gtest
     GTest::gtest_main
     pthread
 )
 gtest_discover_tests(test_concepts)
 
-add_executable(test_ode_solvers test_ode_solvers.cpp)
-target_link_libraries(test_ode_solvers
+add_executable(test_expr test_expr.cpp)
+target_link_libraries(test_expr
     PRIVATE
-    calckit
+    limes
     GTest::gtest
     GTest::gtest_main
     pthread
 )
-gtest_discover_tests(test_ode_solvers)
+gtest_discover_tests(test_expr)
 
-add_executable(test_differentiation test_differentiation.cpp)
-target_link_libraries(test_differentiation
+add_executable(test_expr_domain test_expr_domain.cpp)
+target_link_libraries(test_expr_domain
     PRIVATE
-    calckit
+    limes
     GTest::gtest
     GTest::gtest_main
     pthread
 )
-gtest_discover_tests(test_differentiation)
-
-add_executable(test_antiderivative test_antiderivative.cpp)
-target_link_libraries(test_antiderivative
-    PRIVATE
-    calckit
-    GTest::gtest
-    GTest::gtest_main
-    pthread
-)
-gtest_discover_tests(test_antiderivative)
+gtest_discover_tests(test_expr_domain)
 
 # Add custom target for running tests with coverage
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -133,6 +103,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND CMAKE_BUILD_TYPE STREQUAL "Debu
         COMMAND genhtml ${CMAKE_BINARY_DIR}/coverage/coverage.info --output-directory ${CMAKE_BINARY_DIR}/coverage/html
         COMMAND ${CMAKE_COMMAND} -E echo "Coverage report generated in ${CMAKE_BINARY_DIR}/coverage/html/index.html"
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        DEPENDS test_accumulators test_quadrature test_integrators test_transforms test_parallel test_integration_result test_concepts
+        DEPENDS test_accumulators test_quadrature test_integrators test_result test_concepts test_expr test_expr_domain
     )
 endif()
