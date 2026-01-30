@@ -152,42 +152,36 @@ struct ProductIntegral {
     constexpr ProductIntegral(I1 i1, I2 i2) noexcept
         : left{i1}, right{i2} {}
 
-    /// Evaluate the product integral
-    /// Evaluates both integrals independently and multiplies the results
+    /// Evaluate the product integral (no outer arguments)
     [[nodiscard]] algorithms::integration_result<value_type>
     eval() const {
-        auto r1 = left.eval();
-        auto r2 = right.eval();
-
-        // Multiply values
-        value_type value = r1.value() * r2.value();
-
-        // Error propagation for products: δ(ab) = |b|δa + |a|δb
-        value_type error = std::abs(r2.value()) * r1.error() +
-                           std::abs(r1.value()) * r2.error();
-
-        // Total function evaluations
-        std::size_t evals = r1.evaluations() + r2.evaluations();
-        std::size_t iters = r1.iterations() + r2.iterations();
-
-        return algorithms::integration_result<value_type>{value, error, iters, evals};
+        return combine_results(left.eval(), right.eval());
     }
 
     /// Evaluate with arguments (for integrals with free variables)
     template<typename... Args>
     [[nodiscard]] algorithms::integration_result<value_type>
     eval(Args&&... args) const {
-        auto r1 = left.eval(std::forward<Args>(args)...);
-        auto r2 = right.eval(std::forward<Args>(args)...);
-
-        value_type value = r1.value() * r2.value();
-        value_type error = std::abs(r2.value()) * r1.error() +
-                           std::abs(r1.value()) * r2.error();
-        std::size_t evals = r1.evaluations() + r2.evaluations();
-        std::size_t iters = r1.iterations() + r2.iterations();
-
-        return algorithms::integration_result<value_type>{value, error, iters, evals};
+        return combine_results(
+            left.eval(std::forward<Args>(args)...),
+            right.eval(std::forward<Args>(args)...));
     }
+
+private:
+    /// Combine two integration results using product error propagation:
+    /// delta(ab) = |b| * delta_a + |a| * delta_b
+    static algorithms::integration_result<value_type>
+    combine_results(algorithms::integration_result<value_type> const& r1,
+                    algorithms::integration_result<value_type> const& r2) {
+        value_type value = r1.value() * r2.value();
+        value_type error = std::abs(r2.value()) * r1.error()
+                         + std::abs(r1.value()) * r2.error();
+        return {value, error,
+                r1.iterations() + r2.iterations(),
+                r1.evaluations() + r2.evaluations()};
+    }
+
+public:
 
     /// String representation
     [[nodiscard]] std::string to_string() const {
@@ -258,9 +252,6 @@ template<typename I1, typename I2, typename I3>
 template<typename I1, typename I2>
 inline constexpr bool are_independent_integrals_v =
     (detail::integral_variable_set_v<I1> & detail::integral_variable_set_v<I2>) == 0;
-
-/// Tag type for indicating separable optimization was applied
-struct separable_optimized_tag {};
 
 // =============================================================================
 // Convenience: product() function

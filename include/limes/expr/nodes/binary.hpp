@@ -8,10 +8,10 @@
 
 namespace limes::expr {
 
-// Forward declaration of Integral type trait (defined in integral.hpp)
-// Used to exclude Integral types from generic operator* to avoid ambiguity
+// Forward declaration of Integral type trait (defined in integral.hpp).
+// Used to exclude Integral types from generic operator* to avoid ambiguity.
 template<typename T>
-struct is_integral : std::false_type {};  // Default to false
+struct is_integral : std::false_type {};
 
 // Operation tags for binary operations
 struct Add {};
@@ -19,8 +19,8 @@ struct Sub {};
 struct Mul {};
 struct Div {};
 
-// Binary<Op, L, R>: A binary operation node combining two child expressions
-// Arity is max of children's arities
+// Binary<Op, L, R>: A binary operation node combining two child expressions.
+// Arity is max of children's arities.
 template<typename Op, typename L, typename R>
 struct Binary {
     using value_type = typename L::value_type;
@@ -35,7 +35,6 @@ struct Binary {
 
     constexpr Binary(L l, R r) noexcept : left{l}, right{r} {}
 
-    // Evaluate: compute both children and combine with operation
     [[nodiscard]] constexpr value_type eval(std::span<value_type const> args) const {
         value_type l_val = left.eval(args);
         value_type r_val = right.eval(args);
@@ -51,40 +50,31 @@ struct Binary {
         }
     }
 
-    // Deprecated: use eval() instead
     [[nodiscard]] [[deprecated("use eval() instead")]]
     constexpr value_type evaluate(std::span<value_type const> args) const {
         return eval(args);
     }
 
-    // Derivative using chain rule
-    // d/dx[l + r] = dl + dr
-    // d/dx[l - r] = dl - dr
-    // d/dx[l * r] = dl*r + l*dr (product rule)
-    // d/dx[l / r] = (dl*r - l*dr) / r^2 (quotient rule)
-    // Uses operator overloads for automatic simplification with Zero/One types
+    // Derivative via sum/difference, product, and quotient rules.
+    // Uses operator overloads for automatic simplification with Zero/One types.
     template<std::size_t Dim>
     [[nodiscard]] constexpr auto derivative() const {
         auto dl = left.template derivative<Dim>();
         auto dr = right.template derivative<Dim>();
 
         if constexpr (std::is_same_v<Op, Add>) {
-            return dl + dr;  // Uses operator+ for simplification
+            return dl + dr;
         } else if constexpr (std::is_same_v<Op, Sub>) {
-            return dl - dr;  // Uses operator- for simplification
+            return dl - dr;
         } else if constexpr (std::is_same_v<Op, Mul>) {
-            // Product rule: dl*r + l*dr
-            // Uses operators for simplification (1*r=r, 0*r=0, etc.)
             return (dl * right) + (left * dr);
         } else if constexpr (std::is_same_v<Op, Div>) {
-            // Quotient rule: (dl*r - l*dr) / r^2
             auto numer = (dl * right) - (left * dr);
             auto denom = right * right;
             return numer / denom;
         }
     }
 
-    // String representation (S-expression format)
     [[nodiscard]] std::string to_string() const {
         std::string op_str;
         if constexpr (std::is_same_v<Op, Add>) {
@@ -100,7 +90,8 @@ struct Binary {
     }
 };
 
-// Helper to check if a type is a Const<T>
+// Type traits
+
 template<typename T>
 struct is_const_expr : std::false_type {};
 
@@ -110,7 +101,6 @@ struct is_const_expr<Const<T>> : std::true_type {};
 template<typename T>
 inline constexpr bool is_const_expr_v = is_const_expr<T>::value;
 
-// Helper to check if a type is an expression node (has arity_v)
 template<typename T, typename = void>
 struct is_expr_node : std::false_type {};
 
@@ -120,22 +110,22 @@ struct is_expr_node<T, std::void_t<decltype(T::arity_v)>> : std::true_type {};
 template<typename T>
 inline constexpr bool is_expr_node_v = is_expr_node<T>::value;
 
-// Operator overloads for expression composition
-// These use compile-time simplification via Zero<T> and One<T> marker types
+// Operator overloads for expression composition.
+// These use compile-time simplification via Zero<T> and One<T> marker types.
 
 // expr + expr
 template<typename L, typename R>
     requires (is_expr_node_v<L> && is_expr_node_v<R>)
 [[nodiscard]] constexpr auto operator+(L l, R r) {
     if constexpr (is_zero_v<L>) {
-        return r;                            // 0 + r = r
+        return r;
     } else if constexpr (is_zero_v<R>) {
-        return l;                            // l + 0 = l
+        return l;
     } else if constexpr (is_const_expr_v<L> && is_const_expr_v<R>) {
-        return Const<typename L::value_type>{l.value + r.value};  // constant folding
+        return Const<typename L::value_type>{l.value + r.value};
     } else if constexpr (std::is_same_v<L, R>) {
         using T = typename L::value_type;
-        return Const<T>{T(2)} * l;           // x + x = 2*x
+        return Const<T>{T(2)} * l;
     } else {
         return Binary<Add, L, R>{l, r};
     }
@@ -145,14 +135,16 @@ template<typename L, typename R>
 template<typename L, typename T>
     requires (is_expr_node_v<L> && std::is_arithmetic_v<T>)
 [[nodiscard]] constexpr auto operator+(L l, T r) {
-    return Binary<Add, L, Const<typename L::value_type>>{l, Const<typename L::value_type>{static_cast<typename L::value_type>(r)}};
+    using VT = typename L::value_type;
+    return Binary<Add, L, Const<VT>>{l, Const<VT>{static_cast<VT>(r)}};
 }
 
 // scalar + expr
 template<typename T, typename R>
     requires (std::is_arithmetic_v<T> && is_expr_node_v<R>)
 [[nodiscard]] constexpr auto operator+(T l, R r) {
-    return Binary<Add, Const<typename R::value_type>, R>{Const<typename R::value_type>{static_cast<typename R::value_type>(l)}, r};
+    using VT = typename R::value_type;
+    return Binary<Add, Const<VT>, R>{Const<VT>{static_cast<VT>(l)}, r};
 }
 
 // expr - expr
@@ -160,13 +152,13 @@ template<typename L, typename R>
     requires (is_expr_node_v<L> && is_expr_node_v<R>)
 [[nodiscard]] constexpr auto operator-(L l, R r) {
     if constexpr (is_zero_v<R>) {
-        return l;                            // l - 0 = l
+        return l;
     } else if constexpr (is_zero_v<L>) {
-        return -r;                           // 0 - r = -r (handled by unary negation)
+        return -r;
     } else if constexpr (is_const_expr_v<L> && is_const_expr_v<R>) {
-        return Const<typename L::value_type>{l.value - r.value};  // constant folding
+        return Const<typename L::value_type>{l.value - r.value};
     } else if constexpr (std::is_same_v<L, R>) {
-        return Zero<typename L::value_type>{};  // x - x = 0
+        return Zero<typename L::value_type>{};
     } else {
         return Binary<Sub, L, R>{l, r};
     }
@@ -176,30 +168,32 @@ template<typename L, typename R>
 template<typename L, typename T>
     requires (is_expr_node_v<L> && std::is_arithmetic_v<T>)
 [[nodiscard]] constexpr auto operator-(L l, T r) {
-    return Binary<Sub, L, Const<typename L::value_type>>{l, Const<typename L::value_type>{static_cast<typename L::value_type>(r)}};
+    using VT = typename L::value_type;
+    return Binary<Sub, L, Const<VT>>{l, Const<VT>{static_cast<VT>(r)}};
 }
 
 // scalar - expr
 template<typename T, typename R>
     requires (std::is_arithmetic_v<T> && is_expr_node_v<R>)
 [[nodiscard]] constexpr auto operator-(T l, R r) {
-    return Binary<Sub, Const<typename R::value_type>, R>{Const<typename R::value_type>{static_cast<typename R::value_type>(l)}, r};
+    using VT = typename R::value_type;
+    return Binary<Sub, Const<VT>, R>{Const<VT>{static_cast<VT>(l)}, r};
 }
 
-// expr * expr (excludes Integral types - they use ProductIntegral)
+// expr * expr (excludes Integral types -- they use ProductIntegral)
 template<typename L, typename R>
     requires (is_expr_node_v<L> && is_expr_node_v<R> && !is_integral<L>::value && !is_integral<R>::value)
 [[nodiscard]] constexpr auto operator*(L l, R r) {
     if constexpr (is_zero_v<L>) {
-        return Zero<typename R::value_type>{};  // 0 * r = 0
+        return Zero<typename R::value_type>{};
     } else if constexpr (is_zero_v<R>) {
-        return Zero<typename L::value_type>{};  // l * 0 = 0
+        return Zero<typename L::value_type>{};
     } else if constexpr (is_one_v<L>) {
-        return r;                               // 1 * r = r
+        return r;
     } else if constexpr (is_one_v<R>) {
-        return l;                               // l * 1 = l
+        return l;
     } else if constexpr (is_const_expr_v<L> && is_const_expr_v<R>) {
-        return Const<typename L::value_type>{l.value * r.value};  // constant folding
+        return Const<typename L::value_type>{l.value * r.value};
     } else {
         return Binary<Mul, L, R>{l, r};
     }
@@ -209,14 +203,16 @@ template<typename L, typename R>
 template<typename L, typename T>
     requires (is_expr_node_v<L> && std::is_arithmetic_v<T>)
 [[nodiscard]] constexpr auto operator*(L l, T r) {
-    return Binary<Mul, L, Const<typename L::value_type>>{l, Const<typename L::value_type>{static_cast<typename L::value_type>(r)}};
+    using VT = typename L::value_type;
+    return Binary<Mul, L, Const<VT>>{l, Const<VT>{static_cast<VT>(r)}};
 }
 
 // scalar * expr
 template<typename T, typename R>
     requires (std::is_arithmetic_v<T> && is_expr_node_v<R>)
 [[nodiscard]] constexpr auto operator*(T l, R r) {
-    return Binary<Mul, Const<typename R::value_type>, R>{Const<typename R::value_type>{static_cast<typename R::value_type>(l)}, r};
+    using VT = typename R::value_type;
+    return Binary<Mul, Const<VT>, R>{Const<VT>{static_cast<VT>(l)}, r};
 }
 
 // expr / expr
@@ -224,13 +220,13 @@ template<typename L, typename R>
     requires (is_expr_node_v<L> && is_expr_node_v<R>)
 [[nodiscard]] constexpr auto operator/(L l, R r) {
     if constexpr (is_zero_v<L>) {
-        return Zero<typename L::value_type>{};  // 0 / r = 0
+        return Zero<typename L::value_type>{};
     } else if constexpr (is_one_v<R>) {
-        return l;                               // l / 1 = l
+        return l;
     } else if constexpr (is_const_expr_v<L> && is_const_expr_v<R>) {
-        return Const<typename L::value_type>{l.value / r.value};  // constant folding
+        return Const<typename L::value_type>{l.value / r.value};
     } else if constexpr (std::is_same_v<L, R>) {
-        return One<typename L::value_type>{};   // x / x = 1
+        return One<typename L::value_type>{};
     } else {
         return Binary<Div, L, R>{l, r};
     }
@@ -240,14 +236,16 @@ template<typename L, typename R>
 template<typename L, typename T>
     requires (is_expr_node_v<L> && std::is_arithmetic_v<T>)
 [[nodiscard]] constexpr auto operator/(L l, T r) {
-    return Binary<Div, L, Const<typename L::value_type>>{l, Const<typename L::value_type>{static_cast<typename L::value_type>(r)}};
+    using VT = typename L::value_type;
+    return Binary<Div, L, Const<VT>>{l, Const<VT>{static_cast<VT>(r)}};
 }
 
 // scalar / expr
 template<typename T, typename R>
     requires (std::is_arithmetic_v<T> && is_expr_node_v<R>)
 [[nodiscard]] constexpr auto operator/(T l, R r) {
-    return Binary<Div, Const<typename R::value_type>, R>{Const<typename R::value_type>{static_cast<typename R::value_type>(l)}, r};
+    using VT = typename R::value_type;
+    return Binary<Div, Const<VT>, R>{Const<VT>{static_cast<VT>(l)}, r};
 }
 
 } // namespace limes::expr

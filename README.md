@@ -192,7 +192,7 @@ ctest --test-dir build --output-on-failure
 ## Requirements
 
 - C++20 compiler (GCC 10+, Clang 12+, MSVC 19.29+)
-- CMake 3.16+
+- CMake 3.20+
 - Google Test (for tests, fetched automatically)
 
 ## Documentation

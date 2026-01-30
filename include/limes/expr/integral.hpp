@@ -51,7 +51,6 @@
 #include <cstddef>
 #include <sstream>
 #include <utility>
-#include <functional>
 #include "../algorithms/integrators/integrators.hpp"
 #include "../methods/methods.hpp"
 #include "nodes/const.hpp"
@@ -75,6 +74,33 @@ struct IntegralBuilder;
 template<typename OriginalIntegral, typename Phi, typename Jacobian>
 struct TransformedIntegral;
 
+namespace detail {
+
+/// Build a 1D function from an N-D integrand by fixing outer variables
+/// and varying only dimension Dim. Shared by Integral and TransformedIntegral.
+template<std::size_t Dim, typename E, typename T>
+auto make_integrand_fn(E const& integrand, std::span<T const> outer_args) {
+    return [&integrand, outer_args](T x) -> T {
+        std::vector<T> full_args;
+        full_args.reserve(E::arity_v);
+
+        std::size_t args_idx = 0;
+        for (std::size_t i = 0; i < E::arity_v; ++i) {
+            if (i == Dim) {
+                full_args.push_back(x);
+            } else if (args_idx < outer_args.size()) {
+                full_args.push_back(outer_args[args_idx++]);
+            } else {
+                full_args.push_back(T{0});
+            }
+        }
+
+        return integrand.eval(std::span<T const>{full_args});
+    };
+}
+
+} // namespace detail
+
 // =============================================================================
 // Type traits for Integral
 // =============================================================================
@@ -87,8 +113,7 @@ struct is_integral<Integral<E, Dim, Lo, Hi>> : std::true_type {};
 template<typename T>
 inline constexpr bool is_integral_v = is_integral<T>::value;
 
-// Bound types
-// ConstBound<T>: A constant integration bound
+/// Constant integration bound (e.g., 0.0, 1.0)
 template<typename T>
 struct ConstBound {
     T value;
@@ -96,13 +121,11 @@ struct ConstBound {
     constexpr ConstBound() noexcept : value{} {}
     constexpr explicit ConstBound(T v) noexcept : value{v} {}
 
-    // Evaluate: just return the constant
     template<typename Args>
     [[nodiscard]] constexpr T eval(Args const& /*args*/) const noexcept {
         return value;
     }
 
-    // Deprecated: use eval() instead
     template<typename Args>
     [[nodiscard]] [[deprecated("use eval() instead")]]
     constexpr T evaluate(Args const& args) const noexcept {
@@ -116,20 +139,18 @@ struct ConstBound {
     }
 };
 
-// ExprBound<E>: An expression-valued integration bound (depends on outer variables)
+/// Expression-valued integration bound (depends on outer variables)
 template<typename E>
 struct ExprBound {
     E expr;
 
     constexpr explicit ExprBound(E e) noexcept : expr{e} {}
 
-    // Evaluate: evaluate the expression with the given arguments
     template<typename Args>
     [[nodiscard]] constexpr auto eval(Args const& args) const {
         return expr.eval(args);
     }
 
-    // Deprecated: use eval() instead
     template<typename Args>
     [[nodiscard]] [[deprecated("use eval() instead")]]
     constexpr auto evaluate(Args const& args) const {
@@ -206,33 +227,10 @@ struct Integral {
     // Evaluate the integral numerically
     [[nodiscard]] algorithms::integration_result<value_type>
     eval(std::span<value_type const> args) const {
-        // Get bounds (may depend on outer variables)
         value_type lo = lower.eval(args);
         value_type hi = upper.eval(args);
+        auto f = detail::make_integrand_fn<Dim>(integrand, args);
 
-        // Create a function that fixes the outer variables and varies dimension Dim
-        auto f = [this, args](value_type x) -> value_type {
-            // Build argument vector with x at position Dim
-            std::vector<value_type> full_args;
-            full_args.reserve(E::arity_v);
-
-            std::size_t args_idx = 0;
-            for (std::size_t i = 0; i < E::arity_v; ++i) {
-                if (i == Dim) {
-                    full_args.push_back(x);
-                } else {
-                    if (args_idx < args.size()) {
-                        full_args.push_back(args[args_idx++]);
-                    } else {
-                        full_args.push_back(value_type{0});
-                    }
-                }
-            }
-
-            return integrand.eval(std::span<value_type const>{full_args});
-        };
-
-        // Use adaptive integrator
         algorithms::adaptive_integrator<value_type> integrator;
         return integrator(f, lo, hi, tolerance);
     }
@@ -242,42 +240,15 @@ struct Integral {
         return eval(std::span<value_type const>{});
     }
 
-    // =========================================================================
-    // Method-based evaluation (Phase 3: Methods as first-class objects)
-    // =========================================================================
-
     /// Evaluate the integral using a specific integration method
-    /// Usage: I.eval(gauss<7>()) or I.eval(monte_carlo(10000))
     template<typename Method>
         requires methods::is_integration_method_v<Method>
     [[nodiscard]] algorithms::integration_result<value_type>
     eval(Method const& method, std::span<value_type const> args) const {
-        // Get bounds (may depend on outer variables)
         value_type lo = lower.eval(args);
         value_type hi = upper.eval(args);
+        auto f = detail::make_integrand_fn<Dim>(integrand, args);
 
-        // Create a function that fixes the outer variables and varies dimension Dim
-        auto f = [this, args](value_type x) -> value_type {
-            std::vector<value_type> full_args;
-            full_args.reserve(E::arity_v);
-
-            std::size_t args_idx = 0;
-            for (std::size_t i = 0; i < E::arity_v; ++i) {
-                if (i == Dim) {
-                    full_args.push_back(x);
-                } else {
-                    if (args_idx < args.size()) {
-                        full_args.push_back(args[args_idx++]);
-                    } else {
-                        full_args.push_back(value_type{0});
-                    }
-                }
-            }
-
-            return integrand.eval(std::span<value_type const>{full_args});
-        };
-
-        // Use the provided method
         return method(f, lo, hi);
     }
 
@@ -535,9 +506,6 @@ template<typename E>
     return IntegralBuilder<E>{expr};
 }
 
-// Direct construction: integral(expr).over<Dim>(lo, hi)
-// For the common case of integrating a simple expression
-
 // =============================================================================
 // TransformedIntegral: Change of variables for integration
 // =============================================================================
@@ -604,28 +572,13 @@ struct TransformedIntegral {
     /// Evaluate the transformed integral numerically
     [[nodiscard]] algorithms::integration_result<value_type>
     eval(std::span<value_type const> args) const {
-        auto transformed_f = [this, args](value_type t) -> value_type {
+        constexpr std::size_t dim = OriginalIntegral::dim_v;
+        auto base_fn = detail::make_integrand_fn<dim>(original.integrand, args);
+
+        auto transformed_f = [this, &base_fn](value_type t) -> value_type {
             value_type x = phi(t);
             value_type jac = std::abs(jacobian(t));
-
-            std::vector<value_type> full_args;
-            full_args.reserve(OriginalIntegral::integrand_type::arity_v);
-
-            constexpr std::size_t dim = OriginalIntegral::dim_v;
-            std::size_t args_idx = 0;
-            for (std::size_t i = 0; i < OriginalIntegral::integrand_type::arity_v; ++i) {
-                if (i == dim) {
-                    full_args.push_back(x);
-                } else {
-                    if (args_idx < args.size()) {
-                        full_args.push_back(args[args_idx++]);
-                    } else {
-                        full_args.push_back(value_type{0});
-                    }
-                }
-            }
-
-            return original.integrand.eval(std::span<value_type const>{full_args}) * jac;
+            return base_fn(x) * jac;
         };
 
         algorithms::adaptive_integrator<value_type> integrator;

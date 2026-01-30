@@ -1,5 +1,7 @@
 # Numerical Calculus Library - Implementation Roadmap
 
+> **Note:** This roadmap was written for the pre-v3.0 codebase (`algebraic_integrators`). Many items have been completed or superseded by the v3.0 expression-based API. Retained for historical context. See [ARCHITECTURE.md](ARCHITECTURE.md) for the current design.
+
 ## Executive Summary
 
 Transform `algebraic_integrators` into a comprehensive **hybrid symbolic-numeric calculus library** that:

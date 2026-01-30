@@ -7,23 +7,19 @@
 
 namespace limes::expr {
 
-// Operation tags for unary operations
 struct Neg {};
 
-// Forward declaration of Unary for is_negation_v
 template<typename Op, typename E> struct Unary;
 
-// Type trait to detect Unary<Neg, E> (negation expressions)
 template<typename E> inline constexpr bool is_negation_v = false;
 template<typename E> inline constexpr bool is_negation_v<Unary<Neg, E>> = true;
 
-// Helper to extract the inner type from a negation
 template<typename E> struct negation_inner { using type = void; };
 template<typename E> struct negation_inner<Unary<Neg, E>> { using type = E; };
 template<typename E> using negation_inner_t = typename negation_inner<E>::type;
 
-// Unary<Op, E>: A unary operation node wrapping a child expression
-// Arity is same as child's arity
+// Unary<Op, E>: A unary operation node wrapping a child expression.
+// Currently only supports Neg (negation).
 template<typename Op, typename E>
 struct Unary {
     using value_type = typename E::value_type;
@@ -36,34 +32,25 @@ struct Unary {
 
     constexpr explicit Unary(E c) noexcept : child{c} {}
 
-    // Evaluate: compute child and apply operation
     [[nodiscard]] constexpr value_type eval(std::span<value_type const> args) const {
-        value_type c_val = child.eval(args);
-
         if constexpr (std::is_same_v<Op, Neg>) {
-            return -c_val;
+            return -child.eval(args);
         }
     }
 
-    // Deprecated: use eval() instead
     [[nodiscard]] [[deprecated("use eval() instead")]]
     constexpr value_type evaluate(std::span<value_type const> args) const {
         return eval(args);
     }
 
-    // Derivative
-    // d/dx[-e] = -de
+    // d/dx[-e] = -(de/dx)
     template<std::size_t Dim>
     [[nodiscard]] constexpr auto derivative() const {
-        auto dc = child.template derivative<Dim>();
-
         if constexpr (std::is_same_v<Op, Neg>) {
-            // Use operator- for simplification (-Zero = Zero)
-            return -dc;
+            return -child.template derivative<Dim>();
         }
     }
 
-    // String representation
     [[nodiscard]] std::string to_string() const {
         if constexpr (std::is_same_v<Op, Neg>) {
             return "(- " + child.to_string() + ")";
@@ -71,7 +58,7 @@ struct Unary {
     }
 };
 
-// Unary negation operator with simplification
+// Unary negation with simplification
 template<typename E>
     requires is_expr_node_v<E>
 [[nodiscard]] constexpr auto operator-(E e) {
@@ -84,7 +71,7 @@ template<typename E>
     }
 }
 
-// Unary plus (identity) operator
+// Unary plus (identity)
 template<typename E>
     requires is_expr_node_v<E>
 [[nodiscard]] constexpr auto operator+(E e) {

@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include <cmath>
 #include <limits>
-#include <sstream>
 #include <limes/algorithms/core/result.hpp>
 
 using namespace limes::algorithms;

@@ -101,18 +101,23 @@ adaptive_integrator<double> integrator;
 auto result = integrator(f, 0.0, 1.0, 1e-10);
 ```
 
-**Key abstractions:**
-- `Accumulator` concept — Precision strategies (Kahan, Neumaier, Klein)
-- `QuadratureRule` concept — Node/weight generators
-- `Integrator` concept — Combines rules and accumulators
+**Key abstractions** (6 concepts in `algorithms/concepts/`):
+- `Field` — Types supporting +, -, *, / operations
+- `Accumulator` — Precision strategies (Kahan, Neumaier, Klein)
+- `QuadratureRule` — Node/weight generators
+- `UnivariateFunction` — Single-variable callable
+
+**Key concept** in `methods/concepts.hpp`:
+- `IntegrationMethod` — Integration method contract
 
 ## Namespace Structure
 
 - `limes` (alias: `li`) — Root namespace
 - `limes::expr` — Expression layer (user-facing)
+- `limes::expr::detail` — Shared implementation helpers (tag_name, make_integrand_fn, mc_box_sampler)
 - `limes::methods` — Integration method objects
 - `limes::algorithms` — Numerical backend
-- `limes::algorithms::concepts` — C++20 concepts
+- `limes::algorithms::concepts` — C++20 concepts (Field, Accumulator, QuadratureRule, UnivariateFunction)
 - `limes::algorithms::accumulators` — Precision control
 - `limes::algorithms::quadrature` — Quadrature rules
 

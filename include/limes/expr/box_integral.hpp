@@ -38,11 +38,9 @@
 #include <span>
 #include <string>
 #include <array>
-#include <vector>
 #include <cstddef>
 #include <sstream>
 #include <utility>
-#include <functional>
 #include <random>
 #include "../algorithms/core/result.hpp"
 #include "../methods/methods.hpp"
@@ -58,6 +56,42 @@ namespace limes::expr {
 // Forward declarations
 template<typename E, std::size_t Dims, typename Constraint>
 struct ConstrainedBoxIntegral;
+
+namespace detail {
+
+/// Initialize RNG and per-dimension uniform distributions for Monte Carlo sampling.
+/// Returns the RNG engine, distribution array, and box volume.
+template<typename T, std::size_t Dims>
+struct mc_box_sampler {
+    std::mt19937_64 rng;
+    std::array<std::uniform_real_distribution<T>, Dims> dists;
+    T volume;
+
+    explicit mc_box_sampler(
+        std::array<std::pair<T, T>, Dims> const& bounds,
+        std::optional<std::size_t> seed)
+        : volume{T(1)}
+    {
+        if (seed) {
+            rng.seed(*seed);
+        } else {
+            std::random_device rd;
+            rng.seed(rd());
+        }
+        for (std::size_t d = 0; d < Dims; ++d) {
+            dists[d] = std::uniform_real_distribution<T>(bounds[d].first, bounds[d].second);
+            volume *= (bounds[d].second - bounds[d].first);
+        }
+    }
+
+    void sample(std::array<T, Dims>& point) {
+        for (std::size_t d = 0; d < Dims; ++d) {
+            point[d] = dists[d](rng);
+        }
+    }
+};
+
+} // namespace detail
 
 // =============================================================================
 // BoxIntegral: Integration over rectangular N-dimensional regions
@@ -116,35 +150,14 @@ struct BoxIntegral {
     /// Evaluate using Monte Carlo integration
     [[nodiscard]] algorithms::integration_result<value_type>
     eval(methods::monte_carlo<value_type> const& method) const {
-        std::mt19937_64 rng;
-        if (method.seed) {
-            rng.seed(*method.seed);
-        } else {
-            std::random_device rd;
-            rng.seed(rd());
-        }
-
-        // Create distributions for each dimension
-        std::array<std::uniform_real_distribution<value_type>, Dims> dists;
-        value_type volume = value_type(1);
-
-        for (std::size_t d = 0; d < Dims; ++d) {
-            dists[d] = std::uniform_real_distribution<value_type>(
-                bounds[d].first, bounds[d].second);
-            volume *= (bounds[d].second - bounds[d].first);
-        }
+        detail::mc_box_sampler<value_type, Dims> sampler(bounds, method.seed);
 
         value_type sum = value_type(0);
         value_type sum_sq = value_type(0);
-
         std::array<value_type, Dims> point;
 
         for (std::size_t i = 0; i < method.samples; ++i) {
-            // Generate random point in box
-            for (std::size_t d = 0; d < Dims; ++d) {
-                point[d] = dists[d](rng);
-            }
-
+            sampler.sample(point);
             value_type y = integrand.eval(std::span<value_type const>{point.data(), Dims});
             sum += y;
             sum_sq += y * y;
@@ -153,8 +166,8 @@ struct BoxIntegral {
         value_type n = static_cast<value_type>(method.samples);
         value_type mean = sum / n;
         value_type variance = (sum_sq / n - mean * mean) / n;
-        value_type value = mean * volume;
-        value_type error = std::sqrt(variance) * volume;
+        value_type value = mean * sampler.volume;
+        value_type error = std::sqrt(variance) * sampler.volume;
 
         algorithms::integration_result<value_type> result{value, error, method.samples, method.samples};
         result.variance_ = variance;
@@ -255,37 +268,16 @@ struct ConstrainedBoxIntegral {
     /// Evaluate using Monte Carlo with rejection sampling
     [[nodiscard]] algorithms::integration_result<value_type>
     eval(methods::monte_carlo<value_type> const& method) const {
-        std::mt19937_64 rng;
-        if (method.seed) {
-            rng.seed(*method.seed);
-        } else {
-            std::random_device rd;
-            rng.seed(rd());
-        }
-
-        // Create distributions for each dimension
-        std::array<std::uniform_real_distribution<value_type>, Dims> dists;
-        value_type box_volume = value_type(1);
-
-        for (std::size_t d = 0; d < Dims; ++d) {
-            dists[d] = std::uniform_real_distribution<value_type>(
-                bounds[d].first, bounds[d].second);
-            box_volume *= (bounds[d].second - bounds[d].first);
-        }
+        detail::mc_box_sampler<value_type, Dims> sampler(bounds, method.seed);
 
         value_type sum = value_type(0);
         value_type sum_sq = value_type(0);
         std::size_t accepted = 0;
-
         std::array<value_type, Dims> point;
 
         for (std::size_t i = 0; i < method.samples; ++i) {
-            // Generate random point in box
-            for (std::size_t d = 0; d < Dims; ++d) {
-                point[d] = dists[d](rng);
-            }
+            sampler.sample(point);
 
-            // Check constraint
             if (evaluate_constraint(point)) {
                 value_type y = integrand.eval(std::span<value_type const>{point.data(), Dims});
                 sum += y;
@@ -295,12 +287,13 @@ struct ConstrainedBoxIntegral {
         }
 
         if (accepted == 0) {
-            return algorithms::integration_result<value_type>{value_type(0), value_type(0), method.samples, method.samples};
+            return algorithms::integration_result<value_type>{
+                value_type(0), value_type(0), method.samples, method.samples};
         }
 
-        // Estimate region volume fraction
-        value_type acceptance_rate = static_cast<value_type>(accepted) / static_cast<value_type>(method.samples);
-        value_type region_volume = box_volume * acceptance_rate;
+        value_type acceptance_rate = static_cast<value_type>(accepted)
+                                   / static_cast<value_type>(method.samples);
+        value_type region_volume = sampler.volume * acceptance_rate;
 
         value_type n = static_cast<value_type>(accepted);
         value_type mean = sum / n;

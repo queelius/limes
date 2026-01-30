@@ -1,26 +1,25 @@
 #include <gtest/gtest.h>
 #include <cmath>
-#include <numeric>
-#include <functional>
-#include <array>
 #include <limits>
 #include <limes/algorithms/quadrature/quadrature.hpp>
 
 using namespace limes::algorithms::quadrature;
 
-// Helper function for testing polynomial integration
-template <typename T>
-T integrate_polynomial(const auto& rule, int degree) {
-    // Integrate x^n from -1 to 1
-    auto f = [degree](T x) -> T {
-        return std::pow(x, degree);
-    };
-
+// Apply a quadrature rule to integrate f over [-1, 1]
+template <typename T, typename Rule, typename F>
+T apply_rule(const Rule& rule, F&& f) {
     T sum = T(0);
     for (size_t i = 0; i < rule.size(); ++i) {
         sum += rule.weight(i) * f(rule.abscissa(i));
     }
     return sum;
+}
+
+template <typename T>
+T integrate_polynomial(const auto& rule, int degree) {
+    return apply_rule<T>(rule, [degree](T x) -> T {
+        return std::pow(x, degree);
+    });
 }
 
 // Calculate exact integral of x^n from -1 to 1
@@ -265,63 +264,34 @@ TYPED_TEST(QuadratureTest, TanhSinhQuadrature) {
 
 // Test integration of specific functions
 TEST(QuadratureIntegration, ExponentialFunction) {
-    // Integrate exp(x) from -1 to 1
     auto f = [](double x) { return std::exp(x); };
     double exact = std::exp(1.0) - std::exp(-1.0);
 
-    // Test with various rules
-    {
-        gauss_legendre<double, 5> rule;
-        double sum = 0.0;
-        for (size_t i = 0; i < rule.size(); ++i) {
-            sum += rule.weight(i) * f(rule.abscissa(i));
-        }
-        // 5-point Gauss-Legendre achieves about 1e-9 accuracy for exp(x)
-        EXPECT_NEAR(sum, exact, 1e-9);
-    }
+    gauss_legendre<double, 5> gl5;
+    EXPECT_NEAR(apply_rule<double>(gl5, f), exact, 1e-9);
 
-    {
-        gauss_kronrod_15<double> rule;
-        double sum = 0.0;
-        for (size_t i = 0; i < rule.size(); ++i) {
-            sum += rule.weight(i) * f(rule.abscissa(i));
-        }
-        EXPECT_NEAR(sum, exact, 1e-14);
-    }
+    gauss_kronrod_15<double> gk15;
+    EXPECT_NEAR(apply_rule<double>(gk15, f), exact, 1e-14);
 }
 
 TEST(QuadratureIntegration, TrigonometricFunction) {
-    // Integrate sin(pi*x) from -1 to 1 (should be 0)
     auto f = [](double x) { return std::sin(M_PI * x); };
-    double exact = 0.0;
 
     gauss_legendre<double, 3> rule;
-    double sum = 0.0;
-    for (size_t i = 0; i < rule.size(); ++i) {
-        sum += rule.weight(i) * f(rule.abscissa(i));
-    }
-    EXPECT_NEAR(sum, exact, 1e-14);
+    EXPECT_NEAR(apply_rule<double>(rule, f), 0.0, 1e-14);
 }
 
 TEST(QuadratureIntegration, RationalFunction) {
-    // Integrate 1/(1+x^2) from -1 to 1
     auto f = [](double x) { return 1.0 / (1.0 + x * x); };
     double exact = M_PI / 2.0;
 
     gauss_legendre<double, 5> rule;
-    double sum = 0.0;
-    for (size_t i = 0; i < rule.size(); ++i) {
-        sum += rule.weight(i) * f(rule.abscissa(i));
-    }
-    // 5-point Gauss-Legendre achieves moderate accuracy for this rational function
-    EXPECT_NEAR(sum, exact, 1e-3);
+    EXPECT_NEAR(apply_rule<double>(rule, f), exact, 1e-3);
 }
 
 // Test error estimation with embedded rules
 TEST(QuadratureErrorEstimation, GaussKronrodError) {
-    // Function with known integral
     auto f = [](double x) { return std::exp(-x * x); };
-
     gauss_kronrod_15<double> rule;
 
     // Compute with embedded Gauss rule
@@ -331,47 +301,25 @@ TEST(QuadratureErrorEstimation, GaussKronrodError) {
         gauss_result += rule.gauss_weights[i] * f(rule.abscissa(idx));
     }
 
-    // Compute with Kronrod rule
-    double kronrod_result = 0.0;
-    for (size_t i = 0; i < rule.size(); ++i) {
-        kronrod_result += rule.weight(i) * f(rule.abscissa(i));
-    }
-
-    // Error estimate - the difference between Gauss and Kronrod
+    double kronrod_result = apply_rule<double>(rule, f);
     double error_estimate = std::abs(kronrod_result - gauss_result);
 
-    // The error estimate should be small but not necessarily < 1e-10
-    // For Gaussian functions, G7-K15 typically has error estimate around 1e-8
     EXPECT_LT(error_estimate, 1e-6);
 
     // Kronrod should be more accurate than Gauss
     double exact = 1.4936482656248540; // erf(1) * sqrt(pi)
-    double gauss_error = std::abs(gauss_result - exact);
-    double kronrod_error = std::abs(kronrod_result - exact);
-    EXPECT_LT(kronrod_error, gauss_error);
+    EXPECT_LT(std::abs(kronrod_result - exact), std::abs(gauss_result - exact));
 }
 
-// Test adaptive quadrature scenarios
+// Test quadrature with endpoint singularity: sqrt(1-x^2) (semicircle)
 TEST(QuadratureAdaptive, SingularFunction) {
-    // Function with singularity at endpoint: sqrt(1-x^2)
-    // This is the semicircle function, integral from -1 to 1 is pi/2
     auto f = [](double x) -> double {
         if (std::abs(x) >= 1.0) return 0.0;
         return std::sqrt(1.0 - x * x);
     };
 
-    // Exact integral is pi/2 (semicircle area)
-    double exact = M_PI / 2.0;
-
-    // Use a high-order Gauss-Kronrod rule with many points
     gauss_kronrod_15<double> rule;
-    double sum = 0.0;
-    for (size_t i = 0; i < rule.size(); ++i) {
-        sum += rule.weight(i) * f(rule.abscissa(i));
-    }
-
-    // Gauss-Kronrod with 15 points should get reasonable accuracy for this integral
-    EXPECT_NEAR(sum, exact, 0.01);
+    EXPECT_NEAR(apply_rule<double>(rule, f), M_PI / 2.0, 0.01);
 }
 
 // Test custom quadrature rule

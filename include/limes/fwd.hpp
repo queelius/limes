@@ -1,21 +1,11 @@
 #pragma once
 
-// Forward declarations and namespace aliases for limes library
+// Forward declarations and namespace alias for the limes library
 
 namespace limes {
-
-namespace algorithms {
-// Sub-namespaces
-namespace concepts {}
-namespace accumulators {}
-namespace quadrature {}
-} // namespace algorithms
-
-namespace expr {
-// Sub-namespaces
-namespace concepts {}
-} // namespace expr
-
+namespace algorithms {}
+namespace expr {}
+namespace methods {}
 } // namespace limes
 
 // Short namespace alias

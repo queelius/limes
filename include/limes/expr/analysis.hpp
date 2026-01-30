@@ -21,15 +21,10 @@ template<typename E> struct ExprBound;
 // variable_set: Compile-time bitset of dimensions an expression depends on
 // =============================================================================
 
-/// Primary template - default to 0 (no dependencies)
+/// Primary template - default to 0 (no dependencies).
+/// Covers Const<T>, ConstBound<T>, and any unknown types.
 template<typename E, typename = void>
 struct variable_set {
-    static constexpr std::uint64_t value = 0;
-};
-
-/// Const<T>: Constants depend on no variables
-template<typename T>
-struct variable_set<Const<T>> {
     static constexpr std::uint64_t value = 0;
 };
 
@@ -55,12 +50,6 @@ struct variable_set<Unary<Op, E>> {
 template<typename Tag, typename E>
 struct variable_set<UnaryFunc<Tag, E>> {
     static constexpr std::uint64_t value = variable_set<E>::value;
-};
-
-/// ConstBound<T>: Constants have no dependencies
-template<typename T>
-struct variable_set<ConstBound<T>> {
-    static constexpr std::uint64_t value = 0;
 };
 
 /// ExprBound<E>: Same dependencies as the expression
@@ -141,11 +130,10 @@ inline constexpr std::size_t max_dimension_v = []() constexpr {
 // Separability Detection
 // =============================================================================
 
-// Forward declarations for operation tags
+// Forward declarations for operation tags (defined in nodes/binary.hpp)
 struct Add;
 struct Sub;
 struct Mul;
-struct Div;
 
 namespace detail {
 
@@ -201,28 +189,19 @@ struct is_separable_impl<Binary<Sub, L, R>, D1, D2>
         is_separable_impl<R, D1, D2>::value
     > {};
 
-/// Unary operations on separable expressions that depend on one dimension
-/// are separable (e.g., -sin(x) is separable from y)
+/// Single-child expressions (Unary, UnaryFunc) are separable if they
+/// depend on at most one of D1 or D2
+template<typename E, std::size_t D1, std::size_t D2>
+inline constexpr bool single_child_separable_v =
+    depends_only_on_v<E, (1ULL << D1)> || depends_only_on_v<E, (1ULL << D2)>;
+
 template<typename Op, typename E, std::size_t D1, std::size_t D2>
-struct is_separable_impl<Unary<Op, E>, D1, D2> {
-    static constexpr std::uint64_t mask_d1 = 1ULL << D1;
-    static constexpr std::uint64_t mask_d2 = 1ULL << D2;
+struct is_separable_impl<Unary<Op, E>, D1, D2>
+    : std::bool_constant<single_child_separable_v<Unary<Op, E>, D1, D2>> {};
 
-    // Separable if the child depends on at most one of D1 or D2
-    static constexpr bool value =
-        depends_only_on_v<E, mask_d1> || depends_only_on_v<E, mask_d2>;
-};
-
-/// UnaryFunc on separable expressions
 template<typename Tag, typename E, std::size_t D1, std::size_t D2>
-struct is_separable_impl<UnaryFunc<Tag, E>, D1, D2> {
-    static constexpr std::uint64_t mask_d1 = 1ULL << D1;
-    static constexpr std::uint64_t mask_d2 = 1ULL << D2;
-
-    // Separable if the child depends on at most one of D1 or D2
-    static constexpr bool value =
-        depends_only_on_v<E, mask_d1> || depends_only_on_v<E, mask_d2>;
-};
+struct is_separable_impl<UnaryFunc<Tag, E>, D1, D2>
+    : std::bool_constant<single_child_separable_v<UnaryFunc<Tag, E>, D1, D2>> {};
 
 } // namespace detail
 
@@ -239,11 +218,6 @@ inline constexpr bool is_separable_v = is_separable<E, D1, D2>::value;
 // =============================================================================
 
 namespace detail {
-
-/// Tag for left factor (depends on D1)
-struct left_factor_tag {};
-/// Tag for right factor (depends on D2)
-struct right_factor_tag {};
 
 /// Extract factor from a multiplicative expression
 /// Returns the factor that depends only on the specified dimension
@@ -291,16 +265,17 @@ struct extract_factor<Binary<Mul, L, R>, TargetDim, OtherDim> {
     }
 };
 
-/// For Unary/UnaryFunc that depends on TargetDim: return the whole expression
-template<typename Op, typename E, std::size_t TargetDim, std::size_t OtherDim>
-struct extract_factor<Unary<Op, E>, TargetDim, OtherDim> {
-    static constexpr std::uint64_t target_mask = 1ULL << TargetDim;
-    static constexpr bool is_target = depends_only_on_v<Unary<Op, E>, target_mask>;
+/// Generic extract_factor for single-child nodes (Unary, UnaryFunc):
+/// Return the expression if it depends only on TargetDim, otherwise Const{1}
+template<typename Expr, std::size_t TargetDim, std::size_t OtherDim>
+    requires requires { typename Expr::value_type; }
+struct extract_single_child_factor {
+    static constexpr bool is_target = depends_only_on_v<Expr, (1ULL << TargetDim)>;
 
-    using value_type = typename E::value_type;
-    using type = std::conditional_t<is_target, Unary<Op, E>, Const<value_type>>;
+    using value_type = typename Expr::value_type;
+    using type = std::conditional_t<is_target, Expr, Const<value_type>>;
 
-    static constexpr auto extract(Unary<Op, E> const& expr) {
+    static constexpr auto extract(Expr const& expr) {
         if constexpr (is_target) {
             return expr;
         } else {
@@ -308,23 +283,14 @@ struct extract_factor<Unary<Op, E>, TargetDim, OtherDim> {
         }
     }
 };
+
+template<typename Op, typename E, std::size_t TargetDim, std::size_t OtherDim>
+struct extract_factor<Unary<Op, E>, TargetDim, OtherDim>
+    : extract_single_child_factor<Unary<Op, E>, TargetDim, OtherDim> {};
 
 template<typename Tag, typename E, std::size_t TargetDim, std::size_t OtherDim>
-struct extract_factor<UnaryFunc<Tag, E>, TargetDim, OtherDim> {
-    static constexpr std::uint64_t target_mask = 1ULL << TargetDim;
-    static constexpr bool is_target = depends_only_on_v<UnaryFunc<Tag, E>, target_mask>;
-
-    using value_type = typename E::value_type;
-    using type = std::conditional_t<is_target, UnaryFunc<Tag, E>, Const<value_type>>;
-
-    static constexpr auto extract(UnaryFunc<Tag, E> const& expr) {
-        if constexpr (is_target) {
-            return expr;
-        } else {
-            return Const<value_type>{value_type(1)};
-        }
-    }
-};
+struct extract_factor<UnaryFunc<Tag, E>, TargetDim, OtherDim>
+    : extract_single_child_factor<UnaryFunc<Tag, E>, TargetDim, OtherDim> {};
 
 } // namespace detail
 

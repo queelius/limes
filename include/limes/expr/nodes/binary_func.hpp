@@ -10,26 +10,18 @@
 
 namespace limes::expr {
 
-// =============================================================================
-// Binary Function Tags
-// =============================================================================
-
-struct PowTag {};   // Runtime exponent: pow(base, exp)
-struct MaxTag {};   // Element-wise max
-struct MinTag {};   // Element-wise min
-
-// =============================================================================
-// Forward declarations and type traits
-// =============================================================================
+// Binary function tags
+struct PowTag {};
+struct MaxTag {};
+struct MinTag {};
 
 template<typename Tag, typename L, typename R> struct BinaryFunc;
 
-// Type trait for BinaryFunc detection
+// Type traits for BinaryFunc and specific tags
 template<typename E> inline constexpr bool is_binary_func_v = false;
 template<typename Tag, typename L, typename R>
 inline constexpr bool is_binary_func_v<BinaryFunc<Tag, L, R>> = true;
 
-// Specific binary func type traits
 template<typename E> inline constexpr bool is_runtime_pow_v = false;
 template<typename L, typename R>
 inline constexpr bool is_runtime_pow_v<BinaryFunc<PowTag, L, R>> = true;
@@ -42,10 +34,7 @@ template<typename E> inline constexpr bool is_min_v = false;
 template<typename L, typename R>
 inline constexpr bool is_min_v<BinaryFunc<MinTag, L, R>> = true;
 
-// =============================================================================
 // BinaryFunc<Tag, L, R>: A binary function applied to two child expressions
-// =============================================================================
-
 template<typename Tag, typename L, typename R>
 struct BinaryFunc {
     using value_type = typename L::value_type;
@@ -55,14 +44,11 @@ struct BinaryFunc {
 
     static constexpr std::size_t arity_v = std::max(L::arity_v, R::arity_v);
 
-    L left;   // base for pow, first operand for max/min
-    R right;  // exponent for pow, second operand for max/min
+    L left;
+    R right;
 
     constexpr BinaryFunc(L l, R r) noexcept : left{l}, right{r} {}
 
-    // =========================================================================
-    // Evaluate
-    // =========================================================================
     [[nodiscard]] constexpr value_type eval(std::span<value_type const> args) const {
         value_type l_val = left.eval(args);
         value_type r_val = right.eval(args);
@@ -76,62 +62,37 @@ struct BinaryFunc {
         }
     }
 
-    // Deprecated: use eval() instead
     [[nodiscard]] [[deprecated("use eval() instead")]]
     constexpr value_type evaluate(std::span<value_type const> args) const {
         return eval(args);
     }
 
-    // =========================================================================
-    // Derivative
-    // =========================================================================
-    // pow(f, g): d/dx[f^g] = f^(g-1) * (g*f' + f*g'*ln(f))
-    // max(f, g): d/dx[max(f,g)] = 0.5*(f'+g') + 0.5*sign(f-g)*(f'-g')
-    // min(f, g): d/dx[min(f,g)] = 0.5*(f'+g') - 0.5*sign(f-g)*(f'-g')
-    // =========================================================================
+    // Derivatives:
+    //   pow(f, g): d/dx[f^g] = f^(g-1) * (g*f' + f*g'*ln(f))
+    //   max/min:   subgradient via 0.5*(f'+g') +/- 0.5*sign(f-g)*(f'-g')
     template<std::size_t Dim>
     [[nodiscard]] constexpr auto derivative() const {
         auto df = left.template derivative<Dim>();
         auto dg = right.template derivative<Dim>();
 
         if constexpr (std::is_same_v<Tag, PowTag>) {
-            // General formula: d/dx[f^g] = f^(g-1) * (g*df + f*dg*ln(f))
-            // Special case: if g is constant, this simplifies to g*f^(g-1)*df
-            // Special case: if f is constant, this simplifies to f^g*ln(f)*dg
-
-            auto one = One<value_type>{};
-            auto g_minus_1 = right - one;
+            auto g_minus_1 = right - One<value_type>{};
             auto f_to_g_minus_1 = BinaryFunc<PowTag, L, decltype(g_minus_1)>{left, g_minus_1};
             auto log_f = UnaryFunc<LogTag, L>{left};
-
-            // g*df + f*dg*ln(f)
-            auto term1 = right * df;
-            auto term2 = left * dg * log_f;
-
-            return f_to_g_minus_1 * (term1 + term2);
+            return f_to_g_minus_1 * (right * df + left * dg * log_f);
         } else if constexpr (std::is_same_v<Tag, MaxTag>) {
-            // Subgradient: d/dx[max(f,g)] = 0.5*(df+dg) + 0.5*sign(f-g)*(df-dg)
-            // where sign(x) = x / |x|
             auto half = Const<value_type>{value_type(0.5)};
             auto diff = left - right;
-            auto abs_diff = UnaryFunc<AbsTag, decltype(diff)>{diff};
-            auto sign_diff = diff / abs_diff;
-
+            auto sign_diff = diff / UnaryFunc<AbsTag, decltype(diff)>{diff};
             return half * (df + dg) + half * sign_diff * (df - dg);
         } else if constexpr (std::is_same_v<Tag, MinTag>) {
-            // Subgradient: d/dx[min(f,g)] = 0.5*(df+dg) - 0.5*sign(f-g)*(df-dg)
             auto half = Const<value_type>{value_type(0.5)};
             auto diff = left - right;
-            auto abs_diff = UnaryFunc<AbsTag, decltype(diff)>{diff};
-            auto sign_diff = diff / abs_diff;
-
+            auto sign_diff = diff / UnaryFunc<AbsTag, decltype(diff)>{diff};
             return half * (df + dg) - half * sign_diff * (df - dg);
         }
     }
 
-    // =========================================================================
-    // String representation
-    // =========================================================================
     [[nodiscard]] std::string to_string() const {
         std::string func_name;
         if constexpr (std::is_same_v<Tag, PowTag>) {
@@ -145,29 +106,19 @@ struct BinaryFunc {
     }
 };
 
-// =============================================================================
-// Factory Functions with Compile-Time Simplification
-// =============================================================================
-
-// -----------------------------------------------------------------------------
-// pow(base, exponent) - Runtime exponent power function
-// -----------------------------------------------------------------------------
+// Factory functions with compile-time simplification
 
 // pow(expr, expr)
 template<typename L, typename R>
     requires (is_expr_node_v<L> && is_expr_node_v<R>)
 [[nodiscard]] constexpr auto pow(L base, R exponent) {
     if constexpr (is_zero_v<R>) {
-        // x^0 = 1
         return One<typename L::value_type>{};
     } else if constexpr (is_one_v<R>) {
-        // x^1 = x
         return base;
     } else if constexpr (is_one_v<L>) {
-        // 1^y = 1
         return One<typename L::value_type>{};
     } else if constexpr (is_const_expr_v<L> && is_const_expr_v<R>) {
-        // Constant folding
         return Const<typename L::value_type>{std::pow(base.value, exponent.value)};
     } else {
         return BinaryFunc<PowTag, L, R>{base, exponent};
@@ -190,19 +141,13 @@ template<typename T, typename R>
     return pow(Const<VT>{static_cast<VT>(base)}, exponent);
 }
 
-// -----------------------------------------------------------------------------
-// max(a, b) - Element-wise maximum
-// -----------------------------------------------------------------------------
-
 // max(expr, expr)
 template<typename L, typename R>
     requires (is_expr_node_v<L> && is_expr_node_v<R>)
 [[nodiscard]] constexpr auto max(L a, R b) {
     if constexpr (is_const_expr_v<L> && is_const_expr_v<R>) {
-        // Constant folding (must come before same-type check since Const<T> are same type)
         return Const<typename L::value_type>{std::max(a.value, b.value)};
     } else if constexpr (std::is_same_v<L, R>) {
-        // max(x, x) = x (identity for same expression instances)
         return a;
     } else {
         return BinaryFunc<MaxTag, L, R>{a, b};
@@ -225,19 +170,13 @@ template<typename T, typename R>
     return max(Const<VT>{static_cast<VT>(a)}, b);
 }
 
-// -----------------------------------------------------------------------------
-// min(a, b) - Element-wise minimum
-// -----------------------------------------------------------------------------
-
 // min(expr, expr)
 template<typename L, typename R>
     requires (is_expr_node_v<L> && is_expr_node_v<R>)
 [[nodiscard]] constexpr auto min(L a, R b) {
     if constexpr (is_const_expr_v<L> && is_const_expr_v<R>) {
-        // Constant folding (must come before same-type check since Const<T> are same type)
         return Const<typename L::value_type>{std::min(a.value, b.value)};
     } else if constexpr (std::is_same_v<L, R>) {
-        // min(x, x) = x (identity for same expression instances)
         return a;
     } else {
         return BinaryFunc<MinTag, L, R>{a, b};
@@ -260,10 +199,7 @@ template<typename T, typename R>
     return min(Const<VT>{static_cast<VT>(a)}, b);
 }
 
-// =============================================================================
-// Type Aliases
-// =============================================================================
-
+// Type aliases
 template<typename L, typename R>
 using RuntimePow = BinaryFunc<PowTag, L, R>;
 

@@ -1,12 +1,10 @@
-#include <iostream>
-#include <iomanip>
 #include <cmath>
-#include <chrono>
+#include <iomanip>
+#include <iostream>
 #include <numbers>
 #include <limes/limes.hpp>
 
 using namespace limes::algorithms;
-using namespace std::chrono;
 
 template<typename T>
 void print_result(const char* name, const integration_result<T>& result, T exact = 0) {
@@ -103,65 +101,42 @@ int main() {
         auto f = [](T x) { return T(1e-16); };
         std::size_t n = 1000000;
         T a = 0, b = n;
-
-        // Simple accumulator
-        using simple = accumulators::simple_accumulator<T>;
-        quadrature_integrator<T, quadrature::midpoint_rule<T>, simple> i1{
-            quadrature::midpoint_rule<T>{}, simple{}
-        };
-        auto r1 = i1(f, a, b);
-
-        // Kahan accumulator
-        using kahan = accumulators::kahan_accumulator<T>;
-        quadrature_integrator<T, quadrature::midpoint_rule<T>, kahan> i2{
-            quadrature::midpoint_rule<T>{}, kahan{}
-        };
-        auto r2 = i2(f, a, b);
-
-        // Klein accumulator
-        using klein = accumulators::klein_accumulator<T>;
-        quadrature_integrator<T, quadrature::midpoint_rule<T>, klein> i3{
-            quadrature::midpoint_rule<T>{}, klein{}
-        };
-        auto r3 = i3(f, a, b);
-
         T exact = T(1e-16) * n;
-        print_result("Simple accumulator", r1, exact);
-        print_result("Kahan accumulator", r2, exact);
-        print_result("Klein accumulator", r3, exact);
+
+        auto integrate_with = [&](auto acc) {
+            using Acc = decltype(acc);
+            using Rule = quadrature::midpoint_rule<T>;
+            quadrature_integrator<T, Rule, Acc> integrator{Rule{}, acc};
+            return integrator(f, a, b);
+        };
+
+        print_result("Simple accumulator", integrate_with(accumulators::simple_accumulator<T>{}), exact);
+        print_result("Kahan accumulator",  integrate_with(accumulators::kahan_accumulator<T>{}),  exact);
+        print_result("Klein accumulator",  integrate_with(accumulators::klein_accumulator<T>{}),  exact);
 
         std::cout << "\n";
     }
 
-    // 6. Composing quadrature rules with accumulators
+    // 6. Composing different quadrature rules
     {
         std::cout << "6. Composing different quadrature rules\n";
 
         auto f = [](T x) { return std::exp(-x) * std::cos(x); };
         T a = 0, b = 10;
+        T tol = T(1e-8);
 
-        // Simpson's rule
-        using simpson = quadrature::simpson_rule<T>;
-        quadrature_integrator<T, simpson> simp{simpson{}};
-        auto r1 = simp(f, a, b, T(1e-8));
-        print_result("Simpson (adaptive)", r1);
+        auto integrate_with = [&](auto rule) {
+            using Rule = decltype(rule);
+            quadrature_integrator<T, Rule> integrator{rule};
+            return integrator(f, a, b, tol);
+        };
 
-        // Gauss-Kronrod 15
-        using gk15 = quadrature::gauss_kronrod_15<T>;
-        quadrature_integrator<T, gk15> gk{gk15{}};
-        auto r2 = gk(f, a, b, T(1e-8));
-        print_result("Gauss-Kronrod 15", r2);
-
-        // Clenshaw-Curtis
-        using cc = quadrature::clenshaw_curtis<T, 17>;
-        quadrature_integrator<T, cc> clenshaw{cc{}};
-        auto r3 = clenshaw(f, a, b, T(1e-8));
-        print_result("Clenshaw-Curtis 17", r3);
+        print_result("Simpson (adaptive)",  integrate_with(quadrature::simpson_rule<T>{}));
+        print_result("Gauss-Kronrod 15",    integrate_with(quadrature::gauss_kronrod_15<T>{}));
+        print_result("Clenshaw-Curtis 17",  integrate_with(quadrature::clenshaw_curtis<T, 17>{}));
 
         std::cout << "\n";
     }
 
     std::cout << "=== Demo Complete ===\n";
-
-    return 0;
 }

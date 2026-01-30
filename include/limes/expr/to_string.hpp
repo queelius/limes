@@ -2,12 +2,7 @@
 
 #include <string>
 #include <sstream>
-#include "nodes/const.hpp"
-#include "nodes/var.hpp"
 #include "nodes/binary.hpp"
-#include "nodes/unary.hpp"
-#include "nodes/primitives.hpp"
-#include "integral.hpp"
 
 namespace limes::expr {
 
@@ -37,18 +32,6 @@ template<typename E>
     detail::pretty_print_impl(oss, expr, 0);
     return oss.str();
 }
-
-// Expression info: arity, type name, etc.
-template<typename E>
-    requires is_expr_node_v<E>
-struct expr_info {
-    static constexpr std::size_t arity = E::arity_v;
-
-    static std::string type_name() {
-        // Basic type name extraction (simplified)
-        return typeid(E).name();
-    }
-};
 
 // Stream output operator
 template<typename E>

@@ -2,14 +2,12 @@
 
 #include <array>
 #include <cmath>
-#include <span>
 #include <numbers>
-#include <ranges>
 #include "../concepts/concepts.hpp"
 
 namespace limes::algorithms::quadrature {
 
-// Base quadrature rule interface
+// Base quadrature rule: stores N nodes and weights on [-1, 1]
 template<concepts::Field T, std::size_t N>
 struct quadrature_rule {
     using value_type = T;
@@ -22,27 +20,13 @@ struct quadrature_rule {
 
     constexpr T weight(size_type i) const noexcept { return weights[i]; }
     constexpr T abscissa(size_type i) const noexcept { return abscissas[i]; }
-
-    // Note: std::views::zip requires C++23, so we provide a simpler interface
-    struct node_view {
-        const T& x;
-        const T& w;
-    };
-
-    constexpr auto node(size_type i) const noexcept {
-        return node_view{abscissas[i], weights[i]};
-    }
 };
 
-// Gauss-Legendre quadrature
+// Gauss-Legendre quadrature (primary template requires specialization)
 template<concepts::Field T, std::size_t N>
 struct gauss_legendre : quadrature_rule<T, N> {
-    constexpr gauss_legendre() noexcept {
-        compute_nodes();
-    }
-
-private:
-    constexpr void compute_nodes() noexcept;
+    static_assert(N == 2 || N == 3 || N == 5 || N == 7 || N == 15,
+        "gauss_legendre is only specialized for N = 2, 3, 5, 7, 15");
 };
 
 // Specialized implementations for common orders
@@ -134,11 +118,10 @@ struct gauss_legendre<T, 15> : quadrature_rule<T, 15> {
     }
 };
 
-// Gauss-Kronrod quadrature (extends Gauss-Legendre)
+// Gauss-Kronrod 7-15 rule (extends Gauss-Legendre with embedded error estimation)
 template<concepts::Field T>
 struct gauss_kronrod_15 : quadrature_rule<T, 15> {
     constexpr gauss_kronrod_15() noexcept {
-        // Gauss-Kronrod 7-15 rule
         this->abscissas = {
             T(-0.9914553711208126), T(-0.9491079123427585), T(-0.8648644233597691),
             T(-0.7415311855993944), T(-0.5860872354676911), T(-0.4058451513773972),
@@ -158,7 +141,7 @@ struct gauss_kronrod_15 : quadrature_rule<T, 15> {
         };
     }
 
-    // Embedded Gauss rule for error estimation
+    // Embedded 7-point Gauss rule for error estimation
     static constexpr std::size_t gauss_size = 7;
     std::array<T, gauss_size> gauss_weights = {
         T(0.1294849661688697), T(0.2797053914892767), T(0.3818300505051189),
@@ -178,43 +161,26 @@ struct clenshaw_curtis : quadrature_rule<T, N> {
 private:
     constexpr void compute_nodes() noexcept {
         constexpr T pi = std::numbers::pi_v<T>;
-        constexpr std::size_t n = N - 1;  // Number of subintervals
+        constexpr std::size_t n = N - 1;
 
         for (std::size_t i = 0; i < N; ++i) {
             T theta = pi * T(i) / T(n);
             this->abscissas[i] = -std::cos(theta);
 
-            // Compute Clenshaw-Curtis weights using the standard formula
-            // w_k = c_k * (2/n) * sum_{j=0}^{n/2} b_j * cos(2*j*k*pi/n)
-            // where b_0 = 1, b_{n/2} = 1, b_j = 2 for 0 < j < n/2
-            // and c_0 = c_n = 1/2, c_k = 1 for 0 < k < n
-
             T w = T(0);
-
-            // Handle the summation properly
             std::size_t max_j = n / 2;
             for (std::size_t j = 0; j <= max_j; ++j) {
                 T cos_term = std::cos(T(2) * j * theta);
-                T b_j;
+                T b_j = (j == 0 || j == max_j) ? T(1) : T(2);
 
-                if (j == 0 || j == max_j) {
-                    b_j = T(1);
-                } else {
-                    b_j = T(2);
-                }
-
-                // Each term contributes: b_j / (1 - 4*j^2) * cos(2*j*theta)
-                // Note: 1/(1-4j^2) = -1/(4j^2-1) for j > 0
                 if (j == 0) {
-                    w += b_j * cos_term;  // j=0: 1/(1-0) = 1
+                    w += b_j * cos_term;
                 } else {
                     w -= b_j * cos_term / (T(4) * j * j - T(1));
                 }
             }
 
             w *= T(2) / T(n);
-
-            // Apply endpoint factor
             if (i == 0 || i == n) {
                 w /= T(2);
             }
@@ -224,7 +190,7 @@ private:
     }
 };
 
-// Simpson's rule nodes
+// Simpson's rule (3-point, exact for cubics)
 template<concepts::Field T>
 struct simpson_rule : quadrature_rule<T, 3> {
     constexpr simpson_rule() noexcept {
@@ -233,7 +199,7 @@ struct simpson_rule : quadrature_rule<T, 3> {
     }
 };
 
-// Trapezoidal rule nodes
+// Trapezoidal rule (2-point, exact for linear)
 template<concepts::Field T>
 struct trapezoidal_rule : quadrature_rule<T, 2> {
     constexpr trapezoidal_rule() noexcept {
@@ -242,7 +208,7 @@ struct trapezoidal_rule : quadrature_rule<T, 2> {
     }
 };
 
-// Midpoint rule
+// Midpoint rule (1-point, exact for linear)
 template<concepts::Field T>
 struct midpoint_rule : quadrature_rule<T, 1> {
     constexpr midpoint_rule() noexcept {
@@ -257,26 +223,25 @@ class tanh_sinh_nodes {
 public:
     using value_type = T;
 
-    struct node {
-        T abscissa;
-        T weight;
-    };
-
     static constexpr std::size_t max_level = 10;
 
     constexpr T abscissa(std::size_t level, std::size_t index) const noexcept {
-        T h = T(1) / std::pow(T(2), level);
-        T t = (index == 0) ? T(0) : h * T(index);
+        T t = node_parameter(level, index);
         return transform_abscissa(t);
     }
 
     constexpr T weight(std::size_t level, std::size_t index) const noexcept {
         T h = T(1) / std::pow(T(2), level);
-        T t = (index == 0) ? T(0) : h * T(index);
+        T t = node_parameter(level, index);
         return h * transform_weight(t);
     }
 
 private:
+    static constexpr T node_parameter(std::size_t level, std::size_t index) noexcept {
+        T h = T(1) / std::pow(T(2), level);
+        return (index == 0) ? T(0) : h * T(index);
+    }
+
     static constexpr T transform_abscissa(T t) noexcept {
         T expmt = std::exp(-t);
         T u = std::exp(t - expmt);

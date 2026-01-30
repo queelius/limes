@@ -1,9 +1,7 @@
 #include <gtest/gtest.h>
 #include <cmath>
 #include <functional>
-#include <limits>
 #include <numbers>
-#include <complex>
 #include <limes/limes.hpp>
 
 using namespace limes::algorithms;
@@ -192,7 +190,7 @@ TEST(IntegratorConvergence, ConvergenceRates) {
 
     for (double tol : tolerances) {
         auto integrator = adaptive_integrator<double>{};
-        auto result = integrator(f, 0.0, M_PI, tol);
+        auto result = integrator(f, 0.0, std::numbers::pi, tol);
 
         errors.push_back(std::abs(result.value() - exact));
         evaluations.push_back(result.evaluations());
@@ -232,7 +230,7 @@ TEST(IntegratorSpecialCases, PeakedFunction) {
     double sigma = 0.001;
     auto f = [sigma](double x) {
         return std::exp(-(x * x) / (2 * sigma * sigma)) /
-               (sigma * std::sqrt(2 * M_PI));
+               (sigma * std::sqrt(2 * std::numbers::pi));
     };
 
     // Integral from -1 to 1 should be close to 1 (normalized Gaussian)
@@ -274,7 +272,7 @@ TEST(IntegratorFunctionTypes, StdFunction) {
     std::function<double(double)> f = [](double x) { return std::cos(x); };
 
     auto integrator = adaptive_integrator<double>{};
-    auto result = integrator(f, 0.0, M_PI/2, 1e-10);
+    auto result = integrator(f, 0.0, std::numbers::pi / 2, 1e-10);
 
     // Integral of cos(x) from 0 to pi/2 = sin(pi/2) - sin(0) = 1
     EXPECT_NEAR(result.value(), 1.0, 1e-10);
@@ -302,26 +300,14 @@ TEST(IntegratorStability, NumericalStability) {
     }
 }
 
-// Test different accumulator strategies
-TEST(IntegratorAccumulators, AccumulatorComparison) {
-    // Ill-conditioned sum
+// Test Kahan accumulator on ill-conditioned sum
+TEST(IntegratorAccumulators, KahanAccuracy) {
     auto f = [](double x) { return 1e10 + std::sin(x); };
 
-    // Simple accumulator
-    {
-        using acc = accumulators::simple_accumulator<double>;
-        quadrature_integrator<double, quadrature::gauss_legendre<double, 5>, acc> integrator;
-        auto result = integrator(f, 0.0, M_PI, 1e-8);
-        // Record result for comparison
-    }
+    using acc = accumulators::kahan_accumulator<double>;
+    quadrature_integrator<double, quadrature::gauss_legendre<double, 5>, acc> integrator;
+    auto result = integrator(f, 0.0, std::numbers::pi, 1e-8);
 
-    // Kahan accumulator (should be more accurate)
-    {
-        using acc = accumulators::kahan_accumulator<double>;
-        quadrature_integrator<double, quadrature::gauss_legendre<double, 5>, acc> integrator;
-        auto result = integrator(f, 0.0, M_PI, 1e-8);
-
-        double expected = 1e10 * M_PI + 2.0; // Integral of 1e10 + sin(x)
-        EXPECT_NEAR(result.value(), expected, 100.0);
-    }
+    double expected = 1e10 * std::numbers::pi + 2.0;
+    EXPECT_NEAR(result.value(), expected, 100.0);
 }

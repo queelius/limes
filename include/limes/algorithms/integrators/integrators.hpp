@@ -1,11 +1,8 @@
 #pragma once
 
-#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <functional>
-#include <concepts>
-#include <ranges>
 #include "../concepts/concepts.hpp"
 #include "../core/result.hpp"
 #include "../accumulators/accumulators.hpp"
@@ -31,13 +28,11 @@ public:
     constexpr explicit quadrature_integrator(Rule rule, Acc acc = {}) noexcept
         : rule_{std::move(rule)}, accumulator_template_{std::move(acc)} {}
 
-    // Basic integration over [a, b]
     template<concepts::UnivariateFunction<T> F>
     constexpr result_type operator()(F&& f, T a, T b) const {
         return integrate_interval(std::forward<F>(f), a, b);
     }
 
-    // Integration with tolerance
     template<concepts::UnivariateFunction<T> F>
     constexpr result_type operator()(F&& f, T a, T b, T tol) const {
         return adaptive_integrate(std::forward<F>(f), a, b, tol);
@@ -55,8 +50,7 @@ private:
 
         for (std::size_t i = 0; i < rule_.size(); ++i) {
             T x = center + half_width * rule_.abscissa(i);
-            T y = f(x);
-            acc += rule_.weight(i) * y;
+            acc += rule_.weight(i) * f(x);
         }
 
         T integral = half_width * acc();
@@ -107,7 +101,6 @@ public:
 
     constexpr tanh_sinh_integrator() noexcept = default;
 
-    // Integrate over [a, b]
     template<concepts::UnivariateFunction<T> F>
     constexpr result_type operator()(F&& f, T a, T b, T tol = default_tolerance()) const {
         if (std::isinf(a) && std::isinf(b)) {
@@ -130,8 +123,7 @@ private:
         const T half_width = (b - a) / T(2);
 
         auto transformed = [&](T t) -> T {
-            T x = center + half_width * t;
-            return f(x);
+            return f(center + half_width * t);
         };
 
         return integrate_symmetric(transformed, half_width, tol);
@@ -155,7 +147,7 @@ private:
             return f(x) * scale * scale;
         };
 
-        return integrate_standard(transformed, tol);
+        return integrate_symmetric(transformed, T(1), tol);
     }
 
     template<typename F>
@@ -166,7 +158,7 @@ private:
             return f(x) * scale * scale;
         };
 
-        return integrate_standard(transformed, tol);
+        return integrate_symmetric(transformed, T(1), tol);
     }
 
     template<typename F>
@@ -182,12 +174,10 @@ private:
             std::size_t level_evals = 0;
 
             if (level == 0) {
-                // Central point
                 T w = nodes.weight(0, 0);
                 level_acc += w * f(T(0));
                 level_evals = 1;
             } else {
-                // Add new points at this level
                 std::size_t n = 1 << (level - 1);
                 for (std::size_t i = 1; i <= n; ++i) {
                     std::size_t index = 2 * i - 1;
@@ -217,11 +207,6 @@ private:
         }
 
         return {scale * h * acc(), tol, nodes.max_level, total_evals};
-    }
-
-    template<typename F>
-    constexpr result_type integrate_standard(F&& f, T tol) const {
-        return integrate_symmetric([&](T t) { return f(t); }, T(1), tol);
     }
 };
 
@@ -255,8 +240,7 @@ public:
             Acc sum{};
 
             for (std::size_t k = 0; k < n; ++k) {
-                T x = a + h * (T(2) * k + T(1));
-                sum += f(x);
+                sum += f(a + h * (T(2) * k + T(1)));
             }
 
             R[i][0] = R[i-1][0] / T(2) + h * sum();
@@ -287,7 +271,7 @@ private:
     }
 };
 
-// Convenient type alias for recommended adaptive integrator configuration
+// Recommended adaptive integrator: Gauss-Kronrod 15 with Neumaier accumulation
 template<concepts::Field T>
 using adaptive_integrator = quadrature_integrator<
     T,

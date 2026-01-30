@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <utility>
 #include <optional>
 #include <vector>
 #include "../concepts/concepts.hpp"

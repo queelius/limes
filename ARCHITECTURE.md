@@ -1,244 +1,174 @@
-# Algebraic Integrators - Architecture Overview
+# limes - Architecture Overview
 
 ## Design Philosophy
 
-This library embodies the Unix philosophy of "do one thing well" and emphasizes:
-- **Simplicity**: Each component has a single, clear responsibility
-- **Composability**: Components can be freely combined to create powerful integrators
-- **Generic Programming**: Templates and concepts provide zero-cost abstractions
-- **Performance**: Support for parallel execution and SIMD optimizations
-- **Flexibility**: Type erasure and generic interfaces for maximum adaptability
+limes is a pedagogical C++20 header-only library for composable calculus expressions. Inspired by Stepanov's approach to generic programming:
 
-## Core Architecture
+- **Minimal concepts**: Define clear algebraic contracts via C++20 concepts
+- **Generic algorithms**: Implement against concepts, not concrete types
+- **Composability**: Expressions, methods, and accumulators combine freely
+- **Clarity over features**: Each component is a teachable example of good API design
 
-### 1. Concepts (`include/concepts/`)
+## Three-Layer Architecture
 
-C++20 concepts define clear contracts for all template parameters:
-
-- **Numeric Types**:
-  - `Field`: Types supporting +, -, *, / operations
-  - `RealField`: Field types with transcendental functions
-
-- **Function Types**:
-  - `UnivariateFunction`: Single-variable functions f(x) → y
-  - `MultivariateFunction`: Multi-variable functions f(x₁, ..., xₙ) → y
-
-- **Component Types**:
-  - `Accumulator`: Types that can accumulate values with controlled precision
-  - `QuadratureRule`: Types providing integration nodes and weights
-  - `IntegrationResult`: Types holding integration results with metadata
-  - `CoordinateTransform`: Types for change of variables
-
-### 2. Accumulators (`include/accumulators/`)
-
-Pluggable accumulation strategies for precision control:
-
-```cpp
-// Simple summation (fast, less accurate)
-auto acc1 = make_simple<double>();
-
-// Kahan-Babuška compensated summation
-auto acc2 = make_kahan<double>();
-
-// Neumaier summation (improved Kahan)
-auto acc3 = make_neumaier<double>();
-
-// Klein summation (second-order compensation)
-auto acc4 = make_klein<double>();
-
-// Pairwise summation (cache-friendly)
-auto acc5 = make_pairwise<double>();
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  limes::expr — Expression Layer (user-facing API)              │
+│  Composable calculus expressions with symbolic differentiation  │
+│  and numerical integration                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  limes::methods — Integration Method Objects                    │
+│  gauss<N>(), monte_carlo(), adaptive()                         │
+├─────────────────────────────────────────────────────────────────┤
+│  limes::algorithms — Numerical Backend                          │
+│  Integrators, quadrature rules, accumulators                    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Quadrature Rules (`include/quadrature/`)
+### Layer 1: Expression Layer (`include/limes/expr/`)
 
-Orthogonal quadrature rule components:
+Expression templates providing zero-overhead composable calculus:
 
-- **Gauss-Legendre**: Optimal for smooth functions
-- **Gauss-Kronrod**: Adaptive integration with embedded error estimation
-- **Clenshaw-Curtis**: FFT-friendly, nested rules
-- **Tanh-Sinh**: Double exponential for endpoint singularities
-- **Simpson/Trapezoidal/Midpoint**: Classical rules
+**Node types** (`expr/nodes/`):
+- `Const<T>`, `Zero<T>`, `One<T>` — Constant leaf nodes
+- `Var<N, T>` — Positional variable reference (compile-time index)
+- `NamedVar<T>`, `StaticNamedVar<N, T>` — Variables with debug names
+- `Binary<Op, L, R>` — Binary operators (+, -, *, /) with compile-time simplification
+- `Unary<Op, E>` — Unary negation
+- `UnaryFunc<Tag, E>` — Math primitives (sin, cos, exp, log, sqrt, abs)
+- `BinaryFunc<Tag, L, R>` — Two-argument functions (pow, atan2, min, max)
+- `Pow<N, E>` — Integer power with optimized derivative
+- `Bound<E, Dim>` — Variable binding (partial application)
+- `Conditional<C, T, F>` — Conditional expressions, `sign()`, `heaviside()`
+- `FiniteSum<E, Idx>`, `FiniteProduct<E, Idx>` — Summation/product over index ranges
 
-### 4. Integration Algorithms (`include/integrators/`)
+**Integration nodes** (`expr/`):
+- `Integral<E, Dim, Lo, Hi>` — 1D definite integral with dependent bounds
+- `BoxIntegral<E, Dims>` — N-D rectangular integration (Monte Carlo)
+- `ConstrainedBoxIntegral<E, Dims, Constraint>` — Constrained region integration
+- `ProductIntegral<I1, I2>` — Separable integral composition
 
-Core integration algorithms that compose rules and accumulators:
+**Analysis and differentiation** (`expr/`):
+- `analysis.hpp` — Compile-time variable set tracking (bitset), separability detection
+- `derivative.hpp` — Chain rule differentiation for all node types
+- `derivative_builder.hpp` — Fluent API: `derivative(f).wrt<0>()`
+- `antiderivatives.hpp` — Known closed-form antiderivatives
 
+### Layer 2: Methods Layer (`include/limes/methods/`)
+
+Integration methods as first-class objects modelling the `IntegrationMethod` concept:
+
+- `gauss_legendre<N, T>` — N-point Gauss-Legendre quadrature
+- `monte_carlo<T>` — Monte Carlo with configurable samples and seed
+- `adaptive<T>` — Adaptive subdivision with tolerance control
+
+Factory functions: `gauss<N>()`, `monte_carlo(n)`, `adaptive(tol)`
+
+### Layer 3: Algorithms Layer (`include/limes/algorithms/`)
+
+Low-level numerical backend with pluggable components:
+
+**Concepts** (`algorithms/concepts/`):
+- `Field` — Types supporting +, -, *, / operations
+- `Accumulator` — Types accumulating values with controlled precision
+- `QuadratureRule` — Types providing integration nodes and weights
+- `UnivariateFunction` — Single-variable callable
+
+**Accumulators** (`algorithms/accumulators/`):
+- `simple_accumulator<T>` — Direct summation
+- `kahan_accumulator<T>` — Kahan compensated summation
+- `neumaier_accumulator<T>` — Improved Kahan (handles large+small)
+- `klein_accumulator<T>` — Second-order compensation
+- `pairwise_accumulator<T>` — Cache-friendly pairwise summation
+
+**Quadrature rules** (`algorithms/quadrature/`):
+- `gauss_legendre<T, N>` — Gauss-Legendre for N = 2, 3, 5, 7, 15
+- `gauss_kronrod<T, N>` — Embedded error estimation (N = 7, 15)
+- `clenshaw_curtis<T, N>` — Nested FFT-friendly rules
+- `tanh_sinh_nodes<T, N>` — Double exponential for endpoint singularities
+
+**Integrators** (`algorithms/integrators/`):
+- `quadrature_integrator<T, Rule, Acc>` — Basic quadrature integration
+- `adaptive_integrator<T, Acc>` — Adaptive interval subdivision
+- `romberg_integrator<T, Acc>` — Richardson extrapolation
+- `tanh_sinh_integrator<T, Acc>` — Double exponential for semi/infinite intervals
+
+## Key Design Patterns
+
+### Expression Templates with Compile-Time Simplification
+
+Operators use `if constexpr` to simplify at compile time:
+- `Zero * anything = Zero`
+- `One * x = x`
+- `Const + Const = Const` (constant folding)
+
+### Variable Set Analysis
+
+Compile-time bitset tracking which dimensions an expression depends on:
 ```cpp
-// Basic quadrature with any rule and accumulator
-quadrature_integrator<T, Rule, Accumulator> integrator{rule, acc};
-
-// Tanh-sinh for infinite intervals
-tanh_sinh_integrator<T, Accumulator> de_integrator;
-
-// Romberg with Richardson extrapolation
-romberg_integrator<T, Accumulator> romberg;
+variable_set_v<Var<0, double>>                     // = 0b001
+variable_set_v<Binary<Mul, Var<0>, Var<1>>>        // = 0b011
 ```
+Used for separability detection, independence verification, and bound dependency analysis.
 
-### 5. Coordinate Transforms (`include/transforms/`)
+### is_integral Type Trait
 
-Transforms for handling special integration domains:
+Forward-declared in `nodes/binary.hpp`, specialized in `integral.hpp`. This allows `operator*` in `binary.hpp` to route `Integral * Integral` to `ProductIntegral` instead of `Binary<Mul>`.
 
-- **Linear**: Affine transformations
-- **Interval mapping**: Maps [a, b] ↔ [-1, 1]
-- **Sigmoid/Tanh**: For infinite intervals
-- **Log/Sinh**: For heavy-tailed integrands
-- **IMT**: For endpoint singularities
-- **Double exponential**: Tanh-sinh transform
+### Detail Helpers
 
-### 6. Parallel Execution (`include/parallel/`)
+Shared implementation helpers reduce duplication:
+- `detail::tag_name<Tag>()` — Maps function tags to string names
+- `detail::make_integrand_fn<Dim>()` — Builds integrand lambdas for eval
+- `detail::mc_box_sampler<T, Dims>` — Monte Carlo RNG and sampling
+- `detail::make_extended_args()` — Argument tuple construction for sum/product
 
-Parallel integration with work-stealing and SIMD:
+## Namespace Structure
 
-```cpp
-// Parallel adaptive integration
-parallel_integrator<T, BaseIntegrator> par_int{base, policy};
+- `limes` (alias: `li`) — Root namespace
+- `limes::expr` — Expression layer (user-facing)
+- `limes::methods` — Integration method objects
+- `limes::algorithms` — Numerical backend
+- `limes::algorithms::concepts` — C++20 concepts
+- `limes::algorithms::accumulators` — Precision control
+- `limes::algorithms::quadrature` — Quadrature rules
 
-// Parallel Monte Carlo
-parallel_monte_carlo<T> mc{n_samples, policy};
+## Extension Points
+
+**New expression primitive:** Add a tag struct and specialize `UnaryFunc<Tag, E>` with `eval()`, `derivative<Dim>()`, and `to_string()`.
+
+**New accumulator:** Implement `operator+=(T)`, `operator()() const`, and default constructor.
+
+**New quadrature rule:** Implement `size()`, `weight(i)`, `abscissa(i)`.
+
+**New integration method:** Model `IntegrationMethod` concept (provide `operator()` taking a callable and bounds).
+
+## File Organization
+
 ```
-
-## Usage Patterns
-
-### Simple Integration
-
-```cpp
-// Automatic method selection
-auto result = integrate_adaptive(f, a, b, tolerance);
+include/limes/
+├── limes.hpp                         # Main entry point
+├── fwd.hpp                           # Forward declarations
+├── expr/
+│   ├── expr.hpp                      # Aggregated expression header
+│   ├── nodes/                        # 11 expression node types
+│   ├── analysis.hpp                  # Variable set analysis
+│   ├── antiderivatives.hpp           # Known antiderivatives
+│   ├── concepts.hpp                  # Expression concepts
+│   ├── derivative.hpp                # Differentiation rules
+│   ├── derivative_builder.hpp        # Builder API
+│   ├── integral.hpp                  # 1D integration
+│   ├── box_integral.hpp              # N-D box integration
+│   ├── product_integral.hpp          # Separable integrals
+│   └── to_string.hpp                 # Expression formatting
+├── methods/
+│   ├── concepts.hpp                  # IntegrationMethod concept
+│   └── methods.hpp                   # Method implementations
+└── algorithms/
+    ├── algorithms.hpp                # Aggregated header
+    ├── concepts/concepts.hpp         # Core concepts
+    ├── core/result.hpp               # integration_result<T>
+    ├── accumulators/accumulators.hpp  # 5 accumulator types
+    ├── quadrature/quadrature.hpp     # 4 quadrature families
+    └── integrators/integrators.hpp   # 4 integrator types
 ```
-
-### Custom Configuration
-
-```cpp
-// Compose specific components
-using acc = accumulators::klein_accumulator<double>;
-using rule = quadrature::gauss_kronrod_15<double>;
-quadrature_integrator<double, rule, acc> integrator{rule{}, acc{}};
-auto result = integrator(f, a, b, tol);
-```
-
-### Builder Pattern
-
-```cpp
-auto integrator = make_integrator<double>()
-    .with_quadrature("gauss-legendre")
-    .with_accumulator("neumaier")
-    .with_parallel(true)
-    .with_threads(8)
-    .with_tolerance(1e-12);
-
-auto result = integrator.integrate(f, a, b);
-```
-
-### Transform-Based Integration
-
-```cpp
-// Handle singularity at x=0
-auto transform = transforms::make_imt<double>(0.5);
-auto result = integrate<double>::with_transform(f, 0, 1, transform);
-```
-
-## Performance Features
-
-### SIMD Optimization
-
-The library automatically uses AVX2/AVX-512 instructions when available for:
-- Batch function evaluation
-- Vector accumulation
-- Parallel reduction
-
-### Parallel Execution
-
-- Work-stealing scheduler for adaptive subdivision
-- Parallel Monte Carlo with independent RNG streams
-- Configurable thread pools and chunk sizes
-
-### Cache Optimization
-
-- Pairwise summation for cache-friendly accumulation
-- Blocked algorithms for large-scale integration
-- Memory-aligned data structures for SIMD
-
-## Extensibility
-
-### Adding New Quadrature Rules
-
-```cpp
-template<concepts::Field T, std::size_t N>
-struct my_rule : quadrature_rule<T, N> {
-    constexpr my_rule() {
-        // Initialize weights and abscissas
-    }
-};
-```
-
-### Adding New Accumulators
-
-```cpp
-template<concepts::Field T>
-class my_accumulator {
-public:
-    using value_type = T;
-
-    my_accumulator& operator+=(T value) {
-        // Custom accumulation logic
-        return *this;
-    }
-
-    T operator()() const { return /* accumulated value */; }
-};
-```
-
-### Adding New Transforms
-
-```cpp
-template<concepts::Field T>
-class my_transform : coordinate_transform<T> {
-public:
-    T forward(T x) const override { /* x → y */ }
-    T jacobian(T x) const override { /* dy/dx */ }
-    T inverse(T y) const override { /* y → x */ }
-};
-```
-
-## Best Practices
-
-1. **Start Simple**: Use `integrate_adaptive()` for most cases
-2. **Profile First**: Only optimize when measurements show need
-3. **Choose Accumulator Wisely**:
-   - Simple for speed when precision isn't critical
-   - Kahan/Neumaier for general high precision
-   - Klein for extreme precision requirements
-4. **Parallelize Appropriately**: Only for expensive integrands or large domains
-5. **Use Transforms**: For singularities and infinite intervals
-
-## Design Rationale
-
-### Why Header-Only?
-
-- Zero-cost abstractions through aggressive inlining
-- No ABI compatibility issues
-- Easy integration (just include headers)
-- Template instantiation flexibility
-
-### Why Concepts?
-
-- Clear, documented requirements for template parameters
-- Better error messages
-- Enables composition without inheritance
-- Supports both static and dynamic polymorphism
-
-### Why Orthogonal Components?
-
-- Mix and match algorithms, rules, and accumulators
-- Test components in isolation
-- Reuse components across different contexts
-- Clear separation of concerns
-
-## Future Directions
-
-- Multivariate integration with sparse grids
-- Oscillatory integrals with specialized methods
-- GPU acceleration via CUDA/SYCL
-- Automatic differentiation integration
-- Interval arithmetic for guaranteed bounds

@@ -8,24 +8,19 @@
 
 namespace limes::expr {
 
-// Forward declaration for is_pow_v
 template<typename E, int N> struct Pow;
 
-// Type trait for power detection
 template<typename E> inline constexpr bool is_pow_v = false;
 template<typename E, int N> inline constexpr bool is_pow_v<Pow<E, N>> = true;
 
-// Helper to extract base type from Pow
 template<typename E> struct pow_base { using type = void; };
 template<typename E, int N> struct pow_base<Pow<E, N>> { using type = E; };
 template<typename E> using pow_base_t = typename pow_base<E>::type;
 
-// Helper to extract exponent from Pow
 template<typename E> inline constexpr int pow_exponent_v = 0;
 template<typename E, int N> inline constexpr int pow_exponent_v<Pow<E, N>> = N;
 
-// Pow<E, N>: Expression raised to compile-time integer power
-// Represents E^N where N is a compile-time constant
+// Pow<E, N>: Expression raised to a compile-time integer power N
 template<typename E, int N>
 struct Pow {
     using value_type = typename E::value_type;
@@ -48,37 +43,29 @@ struct Pow {
         } else if constexpr (N == 3) {
             auto v = base.eval(args);
             return v * v * v;
-        } else if constexpr (N > 0) {
-            return std::pow(base.eval(args), N);
         } else {
-            // Negative exponent
             return std::pow(base.eval(args), N);
         }
     }
 
-    // Deprecated: use eval() instead
     [[nodiscard]] [[deprecated("use eval() instead")]]
     constexpr value_type evaluate(std::span<value_type const> args) const {
         return eval(args);
     }
 
-    // Power rule: d/dx[u^n] = n * u^(n-1) * du
+    // Power rule: d/dx[u^n] = n * u^(n-1) * du/dx
     template<std::size_t Dim>
     [[nodiscard]] constexpr auto derivative() const {
         auto du = base.template derivative<Dim>();
 
         if constexpr (N == 0) {
-            return Zero<value_type>{};           // d/dx[x^0] = 0
+            return Zero<value_type>{};
         } else if constexpr (N == 1) {
-            return du;                           // d/dx[x^1] = dx
+            return du;
         } else if constexpr (N == 2) {
-            // d/dx[x^2] = 2x * dx
             return Const<value_type>{value_type(2)} * base * du;
         } else {
-            // d/dx[x^n] = n * x^(n-1) * dx
-            auto coeff = Const<value_type>{value_type(N)};
-            auto reduced = Pow<E, N-1>{base};
-            return coeff * reduced * du;
+            return Const<value_type>{value_type(N)} * Pow<E, N-1>{base} * du;
         }
     }
 
@@ -87,7 +74,7 @@ struct Pow {
     }
 };
 
-// Factory function: pow<N>(expr)
+// Factory: pow<N>(expr) with compile-time simplification
 template<int N, typename E>
     requires is_expr_node_v<E>
 [[nodiscard]] constexpr auto pow(E e) {
@@ -100,14 +87,12 @@ template<int N, typename E>
     }
 }
 
-// Convenience: square(expr) = pow<2>(expr)
 template<typename E>
     requires is_expr_node_v<E>
 [[nodiscard]] constexpr auto square(E e) {
     return Pow<E, 2>{e};
 }
 
-// Convenience: cube(expr) = pow<3>(expr)
 template<typename E>
     requires is_expr_node_v<E>
 [[nodiscard]] constexpr auto cube(E e) {

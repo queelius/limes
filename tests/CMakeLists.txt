@@ -21,76 +21,21 @@ set_tests_properties(BasicTests PROPERTIES
     LABELS "unit"
 )
 
+# Helper function to reduce repetition for GTest targets
+function(limes_add_test name source)
+    add_executable(${name} ${source})
+    target_link_libraries(${name} PRIVATE limes GTest::gtest GTest::gtest_main pthread)
+    gtest_discover_tests(${name})
+endfunction()
+
 # Google Test-based test executables
-add_executable(test_accumulators test_accumulators.cpp)
-target_link_libraries(test_accumulators
-    PRIVATE
-    limes
-    GTest::gtest
-    GTest::gtest_main
-    pthread
-)
-gtest_discover_tests(test_accumulators)
-
-add_executable(test_quadrature test_quadrature.cpp)
-target_link_libraries(test_quadrature
-    PRIVATE
-    limes
-    GTest::gtest
-    GTest::gtest_main
-    pthread
-)
-gtest_discover_tests(test_quadrature)
-
-add_executable(test_integrators test_integrators.cpp)
-target_link_libraries(test_integrators
-    PRIVATE
-    limes
-    GTest::gtest
-    GTest::gtest_main
-    pthread
-)
-gtest_discover_tests(test_integrators)
-
-add_executable(test_result test_result.cpp)
-target_link_libraries(test_result
-    PRIVATE
-    limes
-    GTest::gtest
-    GTest::gtest_main
-    pthread
-)
-gtest_discover_tests(test_result)
-
-add_executable(test_concepts test_concepts.cpp)
-target_link_libraries(test_concepts
-    PRIVATE
-    limes
-    GTest::gtest
-    GTest::gtest_main
-    pthread
-)
-gtest_discover_tests(test_concepts)
-
-add_executable(test_expr test_expr.cpp)
-target_link_libraries(test_expr
-    PRIVATE
-    limes
-    GTest::gtest
-    GTest::gtest_main
-    pthread
-)
-gtest_discover_tests(test_expr)
-
-add_executable(test_expr_domain test_expr_domain.cpp)
-target_link_libraries(test_expr_domain
-    PRIVATE
-    limes
-    GTest::gtest
-    GTest::gtest_main
-    pthread
-)
-gtest_discover_tests(test_expr_domain)
+limes_add_test(test_accumulators test_accumulators.cpp)
+limes_add_test(test_quadrature   test_quadrature.cpp)
+limes_add_test(test_integrators  test_integrators.cpp)
+limes_add_test(test_result       test_result.cpp)
+limes_add_test(test_concepts     test_concepts.cpp)
+limes_add_test(test_expr         test_expr.cpp)
+limes_add_test(test_expr_domain  test_expr_domain.cpp)
 
 # Add custom target for running tests with coverage
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND CMAKE_BUILD_TYPE STREQUAL "Debug")
